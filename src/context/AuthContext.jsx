@@ -37,7 +37,7 @@ export function AuthProvider({ children }) {
       options: { data: { full_name: fullName, phone: phone || null } },
     });
     if (!error && data.user) {
-      await supabase.from("profiles").insert({
+      await supabase.from("profiles").upsert({
         id: data.user.id,
         full_name: fullName,
         phone: phone || null,
@@ -68,12 +68,20 @@ export function AuthProvider({ children }) {
     return supabase.auth.signOut();
   }
 
+  async function signInWithOAuth(provider) {
+    return supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: `${window.location.origin}/home` },
+    });
+  }
+
   const value = {
     session,
     user: session?.user ?? null,
     loading,
     signInWithEmail,
     signUpWithEmail,
+    signInWithOAuth,
     sendResetCode,
     verifyResetCode,
     updatePassword,

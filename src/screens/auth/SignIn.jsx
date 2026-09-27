@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function SignIn() {
   const navigate = useNavigate();
-  const { signInWithEmail } = useAuth();
+  const { signInWithEmail, signInWithOAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +22,12 @@ export default function SignIn() {
       return;
     }
     navigate("/home");
+  }
+
+  async function handleOAuth(provider) {
+    setError("");
+    const { error } = await signInWithOAuth(provider);
+    if (error) setError(error.message || "تعذر تسجيل الدخول بهذا الحساب");
   }
 
   return (
@@ -68,9 +74,9 @@ export default function SignIn() {
           <div className="flex-1 h-px bg-black/10" />
         </div>
 
-        <GhostButton type="button">Google</GhostButton>
-        <GhostButton type="button">Facebook</GhostButton>
-        <GhostButton type="button">Apple</GhostButton>
+        <GhostButton type="button" onClick={() => handleOAuth("google")}>Google</GhostButton>
+        <GhostButton type="button" onClick={() => handleOAuth("facebook")}>Facebook</GhostButton>
+        <GhostButton type="button" onClick={() => handleOAuth("apple")}>Apple</GhostButton>
 
         <p className="text-center text-[13px] text-ink/55 pb-2">
           ليس لديك حساب؟{" "}

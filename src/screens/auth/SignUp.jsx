@@ -28,10 +28,14 @@ export default function SignUp() {
       return;
     }
     setLoading(true);
-    const { error } = await signUpWithEmail(form);
+    const { data, error } = await signUpWithEmail(form);
     setLoading(false);
     if (error) {
       setError(error.message || "حدث خطأ، حاول مرة أخرى");
+      return;
+    }
+    if (!data?.session) {
+      setError("تم إنشاء الحساب. راجع بريدك لتأكيد الإيميل ثم سجّل الدخول");
       return;
     }
     navigate("/home");
