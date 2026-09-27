@@ -5,8 +5,8 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function SignIn() {
   const navigate = useNavigate();
-  const { signInWithPhone } = useAuth();
-  const [phone, setPhone] = useState("");
+  const { signInWithEmail } = useAuth();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,10 +15,10 @@ export default function SignIn() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const { error } = await signInWithPhone(phone, password);
+    const { error } = await signInWithEmail(email, password);
     setLoading(false);
     if (error) {
-      setError("رقم الهاتف أو كلمة السر غير صحيحة");
+      setError("البريد الإلكتروني أو كلمة السر غير صحيحة");
       return;
     }
     navigate("/home");
@@ -31,11 +31,11 @@ export default function SignIn() {
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4 flex-1 flex flex-col">
         <TextField
-          label="رقم الهاتف"
-          type="tel"
-          placeholder="01xxxxxxxxx"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          label="البريد الإلكتروني"
+          type="email"
+          placeholder="name@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
         <TextField

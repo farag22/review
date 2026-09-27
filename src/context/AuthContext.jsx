@@ -22,38 +22,42 @@ export function AuthProvider({ children }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // تسجيل الدخول برقم الهاتف وكلمة السر (متخزنة كـ email مموّه في Supabase auth
-  // أو استخدم supabase.auth.signInWithOtp لو عايز OTP فعلي عبر SMS provider)
-  async function signInWithPhone(phone, password) {
-    const email = phoneToPseudoEmail(phone);
-    return supabase.auth.signInWithPassword({ email, password });
+  async function signInWithEmail(email, password) {
+    return supabase.auth.signInWithPassword({
+      email: normalizeEmail(email),
+      password,
+    });
   }
 
-  async function signUpWithPhone({ fullName, phone, password }) {
-    const email = phoneToPseudoEmail(phone);
+  async function signUpWithEmail({ fullName, email, phone, password }) {
+    const normalizedEmail = normalizeEmail(email);
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
-      options: { data: { full_name: fullName, phone } },
+      options: { data: { full_name: fullName, phone: phone || null } },
     });
     if (!error && data.user) {
       await supabase.from("profiles").insert({
         id: data.user.id,
         full_name: fullName,
-        phone,
+        phone: phone || null,
       });
     }
     return { data, error };
   }
 
-  async function sendResetCode(phone) {
-    // فعليًا: استدعاء Edge Function بترسل SMS عن طريق مزود مصري (مثلاً Vodafone/Taqnyat)
-    // وتخزين الكود في جدول otp_codes مع وقت انتهاء صلاحية
-    return supabase.functions.invoke("send-otp", { body: { phone } });
+  async function sendResetCode(email) {
+    return supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
+      redirectTo: `${window.location.origin}/create-new-password`,
+    });
   }
 
-  async function verifyResetCode(phone, code) {
-    return supabase.functions.invoke("verify-otp", { body: { phone, code } });
+  async function verifyResetCode(email, code) {
+    return supabase.auth.verifyOtp({
+      email: normalizeEmail(email),
+      token: code,
+      type: "recovery",
+    });
   }
 
   async function updatePassword(newPassword) {
@@ -68,8 +72,8 @@ export function AuthProvider({ children }) {
     session,
     user: session?.user ?? null,
     loading,
-    signInWithPhone,
-    signUpWithPhone,
+    signInWithEmail,
+    signUpWithEmail,
     sendResetCode,
     verifyResetCode,
     updatePassword,
@@ -85,9 +89,6 @@ export function useAuth() {
   return ctx;
 }
 
-// Supabase Auth بيحتاج email، فبنحول رقم الهاتف لصيغة شكلية بتفضل فريدة لكل مستخدم.
-// (في نسخة إنتاج، الأفضل تستخدم Supabase Phone Auth مباشرة مع مزود SMS مربوط)
-function phoneToPseudoEmail(phone) {
-  const digits = phone.replace(/\D/g, "");
-  return `${digits}@rider.sahildrive.eg`;
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
 }

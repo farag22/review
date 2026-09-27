@@ -5,9 +5,10 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const { signUpWithPhone } = useAuth();
+  const { signUpWithEmail } = useAuth();
   const [form, setForm] = useState({
     fullName: "",
+    email: "",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -27,7 +28,7 @@ export default function SignUp() {
       return;
     }
     setLoading(true);
-    const { error } = await signUpWithPhone(form);
+    const { error } = await signUpWithEmail(form);
     setLoading(false);
     if (error) {
       setError(error.message || "حدث خطأ، حاول مرة أخرى");
@@ -50,12 +51,19 @@ export default function SignUp() {
           required
         />
         <TextField
-          label="رقم الهاتف"
+          label="البريد الإلكتروني"
+          type="email"
+          placeholder="name@example.com"
+          value={form.email}
+          onChange={(e) => update("email", e.target.value)}
+          required
+        />
+        <TextField
+          label="رقم الهاتف (اختياري)"
           type="tel"
           placeholder="01xxxxxxxxx"
           value={form.phone}
           onChange={(e) => update("phone", e.target.value)}
-          required
         />
         <TextField
           label="كلمة السر"

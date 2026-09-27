@@ -6,7 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 export default function VerifyCode() {
   const navigate = useNavigate();
   const location = useLocation();
-  const phone = location.state?.phone || "";
+  const email = location.state?.email || "";
   const { verifyResetCode, sendResetCode } = useAuth();
   const [code, setCode] = useState("");
   const [seconds, setSeconds] = useState(45);
@@ -22,17 +22,17 @@ export default function VerifyCode() {
   async function handleConfirm() {
     setError("");
     setLoading(true);
-    const { error } = await verifyResetCode(phone, code);
+    const { error } = await verifyResetCode(email, code);
     setLoading(false);
     if (error) {
       setError("الكود غير صحيح، حاول مرة أخرى");
       return;
     }
-    navigate("/create-new-password", { state: { phone } });
+    navigate("/create-new-password", { state: { email } });
   }
 
   async function handleResend() {
-    await sendResetCode(phone);
+    await sendResetCode(email);
     setSeconds(45);
   }
 
@@ -40,10 +40,10 @@ export default function VerifyCode() {
     <div className="flex-1 flex flex-col">
       <ScreenHeader
         title="أدخل كود التحقق"
-        subtitle={`تم إرسال كود مكوّن من 4 أرقام إلى ${phone || "هاتفك"}`}
+        subtitle={`تم إرسال كود التحقق إلى ${email || "بريدك الإلكتروني"}`}
       />
       <div className="px-6 mt-6 flex-1 flex flex-col gap-6">
-        <PinInputs length={4} value={code} onChange={setCode} />
+        <PinInputs length={6} value={code} onChange={setCode} />
         {error && <p className="text-red-500 text-[13px] text-center">{error}</p>}
 
         <p className="text-center text-[13px] text-ink/50">
@@ -58,7 +58,7 @@ export default function VerifyCode() {
 
         <div className="flex-1" />
 
-        <PrimaryButton onClick={handleConfirm} disabled={code.length < 4 || loading}>
+        <PrimaryButton onClick={handleConfirm} disabled={code.length < 6 || loading}>
           {loading ? "جاري التأكيد..." : "تأكيد"}
         </PrimaryButton>
       </div>
