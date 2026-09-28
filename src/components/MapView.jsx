@@ -54,6 +54,7 @@ export default function MapView({
   userLocation,
   follow = false,
   fill = false,
+  fitPadding,
   children,
 }) {
   const wrapRef = useRef(null);
@@ -61,6 +62,7 @@ export default function MapView({
   const layersRef = useRef({
     markers: null,
     route: null,
+    routeGlow: null,
     pickup: null,
     destination: null,
     driver: null,
@@ -133,17 +135,36 @@ export default function MapView({
     upsert("driver", driver, "#1d4ed8", "س", Boolean(followRef.current || driver));
 
     if (path?.length > 1) {
-      if (layers.route) {
+      if (layers.route && layers.routeGlow) {
+        layers.routeGlow.setLatLngs(path);
         layers.route.setLatLngs(path);
       } else {
-        layers.route = L.polyline(path, { color: "#0b7350", weight: 4, opacity: 0.85 }).addTo(map);
+        if (layers.route) map.removeLayer(layers.route);
+        if (layers.routeGlow) map.removeLayer(layers.routeGlow);
+        layers.routeGlow = L.polyline(path, {
+          color: "#34d399",
+          weight: 12,
+          opacity: 0.32,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(map);
+        layers.route = L.polyline(path, {
+          color: "#059669",
+          weight: 5,
+          opacity: 0.95,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(map);
       }
-    } else if (layers.route) {
-      map.removeLayer(layers.route);
+    } else if (layers.route || layers.routeGlow) {
+      if (layers.route) map.removeLayer(layers.route);
+      if (layers.routeGlow) map.removeLayer(layers.routeGlow);
       layers.route = null;
+      layers.routeGlow = null;
     }
 
-    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}`;
+    const pad = fitPadding || { padding: [48, 48] };
+    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${JSON.stringify(pad)}`;
     if (fitKey !== lastFitRef.current) {
       lastFitRef.current = fitKey;
       const bounds = [];
@@ -152,7 +173,7 @@ export default function MapView({
       if (path?.length > 1) path.forEach((p) => bounds.push(p));
       else if (driver?.lat != null) bounds.push([driver.lat, driver.lng]);
       if (bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16, animate: false });
+        map.fitBounds(bounds, { maxZoom: 16, animate: false, ...pad });
       } else if (bounds.length === 1) {
         map.setView(bounds[0], 15, { animate: false });
       }

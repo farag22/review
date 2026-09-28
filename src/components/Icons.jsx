@@ -136,3 +136,130 @@ export function CarBadge({ label, price, eta, size = 44 }) {
     </div>
   );
 }
+
+function RideGlyph({ children, size, active }) {
+  return (
+    <div
+      className={`rounded-2xl flex items-center justify-center shrink-0 ${
+        active ? "bg-emerald-400/20 ring-1 ring-emerald-300/40" : "bg-white/10"
+      }`}
+      style={{ width: size, height: size }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function RideTypeIcon({ type = "economy", size = 48, active = false }) {
+  const stroke = active ? "#6ee7b7" : "#e2e8f0";
+  const fill = active ? "#34d399" : "#cbd5e1";
+  const id = String(type || "").toLowerCase();
+  const iconSize = size * 0.56;
+
+  if (id.includes("tuktuk") || id.includes("tuk")) {
+    return (
+      <RideGlyph size={size} active={active}>
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
+          <path d="M4 16V10.5L7 7h7.5L19 11v5" stroke={stroke} {...base} />
+          <path d="M4 16h15" stroke={stroke} {...base} />
+          <circle cx="7.2" cy="16.4" r="1.6" fill={fill} />
+          <circle cx="16.6" cy="16.4" r="1.6" fill={fill} />
+          <path d="M11 7v4h8" stroke={stroke} {...base} />
+        </svg>
+      </RideGlyph>
+    );
+  }
+
+  if (id.includes("scooter") || id.includes("bike")) {
+    return (
+      <RideGlyph size={size} active={active}>
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
+          <circle cx="6.5" cy="17" r="2.2" stroke={stroke} {...base} />
+          <circle cx="17.5" cy="17" r="2.2" stroke={stroke} {...base} />
+          <path d="M8.5 17h5L16 9h2.5" stroke={stroke} {...base} />
+          <path d="M13.5 12.5H10" stroke={stroke} {...base} />
+        </svg>
+      </RideGlyph>
+    );
+  }
+
+  if (id.includes("delivery") || id.includes("parcel") || id.includes("box")) {
+    return (
+      <RideGlyph size={size} active={active}>
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
+          <path d="M4 8.5L12 4l8 4.5v11L12 20l-8-4.5v-11z" stroke={stroke} {...base} />
+          <path d="M12 20V11M4 8.5l8 2.5 8-2.5" stroke={stroke} {...base} />
+        </svg>
+      </RideGlyph>
+    );
+  }
+
+  if (id.includes("comfort") || id.includes("premium") || id.includes("masseya")) {
+    return (
+      <RideGlyph size={size} active={active}>
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
+          <path
+            d="M3.5 16v-3l2-4.2A2 2 0 0 1 7.4 7.5h9.2a2 2 0 0 1 1.9 1.3l2 4.2V16"
+            stroke={stroke}
+            {...base}
+          />
+          <path d="M3.5 16h17" stroke={stroke} {...base} />
+          <circle cx="7.2" cy="16.2" r="1.7" fill={fill} />
+          <circle cx="16.8" cy="16.2" r="1.7" fill={fill} />
+          <path d="M8 10.5h8" stroke={stroke} {...base} />
+        </svg>
+      </RideGlyph>
+    );
+  }
+
+  return (
+    <RideGlyph size={size} active={active}>
+      <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
+        <path
+          d="M4 16v-3.2c0-.5.2-1 .6-1.3l1.8-1.7c.3-.3.7-.5 1.2-.5h8.8c.5 0 .9.2 1.2.5l1.8 1.7c.4.3.6.8.6 1.3V16"
+          stroke={stroke}
+          {...base}
+        />
+        <rect x="3" y="16" width="18" height="3" rx="1" stroke={stroke} {...base} />
+        <circle cx="7.5" cy="16" r="1.4" fill={fill} />
+        <circle cx="16.5" cy="16" r="1.4" fill={fill} />
+      </svg>
+    </RideGlyph>
+  );
+}
+
+export function CashIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="6" width="18" height="12" rx="2" stroke={color} {...base} />
+      <circle cx="12" cy="12" r="2.2" stroke={color} {...base} />
+      <path d="M7 9.2c.6-.5 1.4-.8 2.2-.8M17 14.8c-.6.5-1.4.8-2.2.8" stroke={color} {...base} />
+    </svg>
+  );
+}
+
+export function CardPayIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="6" width="18" height="12" rx="2" stroke={color} {...base} />
+      <path d="M3 10h18" stroke={color} {...base} />
+      <path d="M7 15h4" stroke={color} {...base} />
+    </svg>
+  );
+}
+
+export function BankIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 10h16M12 4l10 6H2l10-6z" stroke={color} {...base} />
+      <path d="M6 10v6M10 10v6M14 10v6M18 10v6M4 16h16v2H4z" stroke={color} {...base} />
+    </svg>
+  );
+}
+
+export function PaymentMethodIcon({ method = "cash", size = 18, color = "#fff" }) {
+  if (method === "wallet") return <WalletIcon size={size} color={color} />;
+  if (method === "card") return <CardPayIcon size={size} color={color} />;
+  if (method === "bank") return <BankIcon size={size} color={color} />;
+  return <CashIcon size={size} color={color} />;
+}
