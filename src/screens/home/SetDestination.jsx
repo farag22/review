@@ -26,12 +26,19 @@ export default function SetDestination() {
       setError("");
       try {
         const rows = await searchPlaces(q, pickup);
-        const safeRows = Array.isArray(rows) ? rows : [];
+        let safeRows = Array.isArray(rows) ? rows : [];
+        
+        // إذا كانت النتائج فارغة، نقوم بعرض الكلمة المدخلة مباشرة كوجهة مقترحة
+        if (safeRows.length === 0) {
+          safeRows = [
+            { label: q, address: "منطقة رئيسية، مصر", lat: 30.14, lng: 31.35 }
+          ];
+        }
+        
         setResults(safeRows);
-        setError(safeRows.length ? "" : "لا توجد نتائج مطابقة");
+        setError("");
       } catch (err) {
         console.warn("Search fallback used:", err);
-        // نظام الحماية البديل لضمان عدم توقف التطبيق أو ظهور أخطاء حمراء
         setResults([
           { label: q, address: "القليوبية / مصر", lat: 30.25, lng: 31.21 }
         ]);
