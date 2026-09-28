@@ -66,3 +66,13 @@ src/
 ```
 
 مسارات الكابتن: `/captain/signin` · `/captain/signup` · `/captain/dashboard` · `/captain/ride`
+
+مسارات الإدارة: `/admin/signin` · `/admin/dashboard`
+
+لتعيين حساب أدمن بعد التسجيل شغّل في SQL Editor:
+
+```sql
+update public.profiles
+set role = 'admin'
+where id = (select id from auth.users where email = 'admin@example.com');
+```

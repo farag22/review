@@ -32,6 +32,9 @@ import CaptainSignUp from "./screens/captain/CaptainSignUp";
 import CaptainDashboard from "./screens/captain/CaptainDashboard";
 import CaptainActiveRide from "./screens/captain/CaptainActiveRide";
 
+import AdminSignIn from "./screens/admin/AdminSignIn";
+import AdminDashboard from "./screens/admin/AdminDashboard";
+
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
@@ -43,6 +46,13 @@ function RequireCaptainAuth({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/captain/signin" replace />;
+  return children;
+}
+
+function RequireAdminAuth({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/signin" replace />;
   return children;
 }
 
@@ -60,6 +70,19 @@ export default function App() {
           <Route path="/verify-code" element={<VerifyCode />} />
           <Route path="/create-new-password" element={<CreateNewPassword />} />
           <Route path="/password-updated" element={<PasswordUpdated />} />
+
+          <Route path="/admin/signin" element={<AdminSignIn />} />
+          <Route
+            path="/admin/*"
+            element={
+              <RequireAdminAuth>
+                <Routes>
+                  <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+                </Routes>
+              </RequireAdminAuth>
+            }
+          />
 
           <Route path="/captain/signin" element={<CaptainSignIn />} />
           <Route path="/captain/signup" element={<CaptainSignUp />} />

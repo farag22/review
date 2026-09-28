@@ -37,6 +37,13 @@ export default function Welcome() {
         >
           دخول الكابتن
         </button>
+        <button
+          type="button"
+          onClick={() => navigate("/admin/signin")}
+          className="w-full text-center text-white/70 text-[12px] font-semibold py-1"
+        >
+          لوحة الإدارة
+        </button>
       </div>
     </div>
   );
