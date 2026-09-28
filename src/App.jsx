@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { RideProvider } from "./context/RideContext";
+import { CaptainProvider } from "./context/CaptainContext";
 import { useAuth } from "./context/AuthContext";
 
 import Splash from "./screens/onboarding/Splash";
@@ -26,10 +27,22 @@ import TripCompleted from "./screens/trip/TripCompleted";
 import Wallet from "./screens/wallet/Wallet";
 import ScheduleRide from "./screens/schedule/ScheduleRide";
 
+import CaptainSignIn from "./screens/captain/CaptainSignIn";
+import CaptainSignUp from "./screens/captain/CaptainSignUp";
+import CaptainDashboard from "./screens/captain/CaptainDashboard";
+import CaptainActiveRide from "./screens/captain/CaptainActiveRide";
+
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/signin" replace />;
+  return children;
+}
+
+function RequireCaptainAuth({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/captain/signin" replace />;
   return children;
 }
 
@@ -47,6 +60,23 @@ export default function App() {
           <Route path="/verify-code" element={<VerifyCode />} />
           <Route path="/create-new-password" element={<CreateNewPassword />} />
           <Route path="/password-updated" element={<PasswordUpdated />} />
+
+          <Route path="/captain/signin" element={<CaptainSignIn />} />
+          <Route path="/captain/signup" element={<CaptainSignUp />} />
+          <Route
+            path="/captain/*"
+            element={
+              <RequireCaptainAuth>
+                <CaptainProvider>
+                  <Routes>
+                    <Route path="dashboard" element={<CaptainDashboard />} />
+                    <Route path="ride" element={<CaptainActiveRide />} />
+                    <Route path="*" element={<Navigate to="/captain/dashboard" replace />} />
+                  </Routes>
+                </CaptainProvider>
+              </RequireCaptainAuth>
+            }
+          />
 
           {/* Rider flow (auth required) */}
           <Route

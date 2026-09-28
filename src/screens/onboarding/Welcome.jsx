@@ -30,6 +30,13 @@ export default function Welcome() {
         >
           تسجيل الدخول
         </GhostButton>
+        <button
+          type="button"
+          onClick={() => navigate("/captain/signin")}
+          className="w-full text-center text-white/85 text-[13px] font-bold py-2"
+        >
+          دخول الكابتن
+        </button>
       </div>
     </div>
   );

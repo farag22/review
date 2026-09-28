@@ -1,0 +1,146 @@
+-- ============================================================
+-- Sahil Drive — ترقية قاعدة البيانات لواجهة الكابتن
+-- شغّل هذا الملف في SQL Editor إن كان schema.sql قد نُفّذ سابقًا
+-- ============================================================
+
+alter table public.drivers add column if not exists user_id uuid;
+alter table public.rides add column if not exists arrived_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'drivers_user_id_key'
+  ) then
+    alter table public.drivers add constraint drivers_user_id_key unique (user_id);
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'drivers_user_id_fkey'
+  ) then
+    alter table public.drivers
+      add constraint drivers_user_id_fkey
+      foreign key (user_id) references auth.users(id) on delete set null;
+  end if;
+end $$;
+
+drop trigger if exists trg_assign_driver on public.rides;
+
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, full_name, phone)
+  values (
+    new.id,
+    new.raw_user_meta_data ->> 'full_name',
+    nullif(new.raw_user_meta_data ->> 'phone', '')
+  )
+  on conflict (id) do nothing;
+
+  insert into public.wallets (user_id, balance)
+  values (new.id, 0)
+  on conflict (user_id) do nothing;
+
+  insert into public.payment_methods (user_id, type, label, is_default)
+  values (new.id, 'cash', 'نقدًا', true)
+  on conflict do nothing;
+
+  if (new.raw_user_meta_data ->> 'role') = 'captain' then
+    insert into public.drivers (user_id, full_name, phone, car_model, plate_number, ride_type)
+    values (
+      new.id,
+      new.raw_user_meta_data ->> 'full_name',
+      nullif(new.raw_user_meta_data ->> 'phone', ''),
+      new.raw_user_meta_data ->> 'car_model',
+      new.raw_user_meta_data ->> 'plate_number',
+      nullif(new.raw_user_meta_data ->> 'ride_type', '')
+    )
+    on conflict (user_id) do nothing;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop policy if exists "captains insert self" on public.drivers;
+create policy "captains insert self" on public.drivers
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "captains update self" on public.drivers;
+create policy "captains update self" on public.drivers
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "captains delete self" on public.drivers;
+create policy "captains delete self" on public.drivers
+  for delete using (auth.uid() = user_id);
+
+drop policy if exists "captains read matching rides" on public.rides;
+create policy "captains read matching rides" on public.rides
+  for select using (
+    exists (
+      select 1 from public.drivers d
+      where d.user_id = auth.uid()
+        and (
+          d.id = rides.driver_id
+          or (
+            rides.status = 'requested'
+            and rides.driver_id is null
+            and d.is_online is true
+            and (d.ride_type = rides.ride_type or d.ride_type is null)
+          )
+        )
+    )
+  );
+
+drop policy if exists "captains accept and update rides" on public.rides;
+create policy "captains accept and update rides" on public.rides
+  for update using (
+    exists (
+      select 1 from public.drivers d
+      where d.user_id = auth.uid()
+        and (
+          d.id = rides.driver_id
+          or (
+            rides.status = 'requested'
+            and rides.driver_id is null
+            and d.is_online is true
+            and (d.ride_type = rides.ride_type or d.ride_type is null)
+          )
+        )
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.drivers d
+      where d.user_id = auth.uid()
+        and d.id = rides.driver_id
+    )
+  );
+
+drop policy if exists "captains read ride stops" on public.ride_stops;
+create policy "captains read ride stops" on public.ride_stops
+  for select using (
+    exists (
+      select 1 from public.rides r
+      join public.drivers d on d.id = r.driver_id
+      where r.id = ride_stops.ride_id and d.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "captains read assigned rider profiles" on public.profiles;
+create policy "captains read assigned rider profiles" on public.profiles
+  for select using (
+    exists (
+      select 1 from public.rides r
+      join public.drivers d on d.id = r.driver_id
+      where r.rider_id = profiles.id and d.user_id = auth.uid()
+    )
+  );
+
+create index if not exists rides_requested_type_idx
+  on public.rides (ride_type, requested_at desc)
+  where status = 'requested' and driver_id is null;

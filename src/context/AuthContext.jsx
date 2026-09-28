@@ -46,6 +46,51 @@ export function AuthProvider({ children }) {
     return { data, error };
   }
 
+  async function signUpCaptain({
+    fullName,
+    email,
+    phone,
+    password,
+    carModel,
+    plateNumber,
+    rideType,
+  }) {
+    const normalizedEmail = normalizeEmail(email);
+    const meta = {
+      full_name: fullName,
+      phone: phone || null,
+      role: "captain",
+      car_model: carModel || null,
+      plate_number: plateNumber || null,
+      ride_type: rideType || null,
+    };
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: { data: meta },
+    });
+    if (!error && data.user) {
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        full_name: fullName,
+        phone: phone || null,
+      });
+      await supabase.from("drivers").upsert(
+        {
+          user_id: data.user.id,
+          full_name: fullName,
+          phone: phone || null,
+          car_model: carModel || null,
+          plate_number: plateNumber || null,
+          ride_type: rideType || null,
+          is_online: false,
+        },
+        { onConflict: "user_id" }
+      );
+    }
+    return { data, error };
+  }
+
   async function sendResetCode(email) {
     return supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
       redirectTo: `${window.location.origin}/create-new-password`,
@@ -81,6 +126,7 @@ export function AuthProvider({ children }) {
     loading,
     signInWithEmail,
     signUpWithEmail,
+    signUpCaptain,
     signInWithOAuth,
     sendResetCode,
     verifyResetCode,

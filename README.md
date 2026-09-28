@@ -1,6 +1,6 @@
-# Sahil Drive — تطبيق الراكب (Web App)
+# Sahil Drive — تطبيق الراكب والكابتن (Web App)
 
-تطبيق ويب بـ React + Vite + Tailwind متصل بـ Supabase. التسجيل والدخول بالإيميل الحقيقي، والموقع والخريطة والتسعير والرحلات من بيانات حية.
+تطبيق ويب بـ React + Vite + Tailwind متصل بـ Supabase. التسجيل والدخول بالإيميل الحقيقي، والموقع والخريطة والتسعير والرحلات من بيانات حية. يشمل واجهة راكب وواجهة كابتن.
 
 ## التشغيل محليًا
 
@@ -27,10 +27,10 @@ npm run dev
 1. أنشئ مشروعًا على supabase.com.
 2. شغّل `supabase/schema.sql` في SQL Editor. ينشئ:
    - `profiles`, `wallets`, `wallet_txns`, `rides`, `ride_stops`, `saved_places`
-   - `payment_methods`, `drivers`, `ride_types`, `promo_codes`
-   - Trigger لبروفايل ومحفظة لكل مستخدم جديد
-   - تعيين أقرب سائق متصل عند طلب الرحلة
-   - Row Level Security
+   - `payment_methods`, `drivers` (مع `user_id` لربط حساب الكابتن), `ride_types`, `promo_codes`
+   - Trigger لبروفايل ومحفظة، وإنشاء صف سائق عند `role=captain`
+   - سياسات RLS للراكب والكابتن (قبول الرحلات المعلقة وتحديث حالتها)
+   - إن كان المشروع قديماً شغّل أيضاً `supabase/captain.sql`
 3. من Project Settings → API انسخ Project URL و anon public key إلى `.env.local`.
 4. Authentication → Providers: فعّل Email. اختياريًا Google / Facebook / Apple.
 5. Authentication → URL Configuration: أضف رابط التطبيق في Redirect URLs.
@@ -43,9 +43,13 @@ npm run dev
 - حساب المسار والمسافة والوقت عبر OSRM
 - تسعير الرحلة حسب المسافة والمدة ونوع المركبة
 - حفظ الرحلة والتوقفات والتقييم في جداول Supabase
-- انتظار السائق عبر Realtime + polling
+- انتظار السائق عبر Realtime + polling حتى يقبل كابتن الطلب
 - محفظة وشحن رصيد وطرق دفع محفوظة
 - جدولة رحلة بموعد حقيقي يُحفظ في `scheduled_at`
+- واجهة كابتن: تسجيل / دخول مربوط بجدول `drivers`
+- تبديل `is_online` وتحديث `lat, lng` على خريطة Leaflet
+- عرض الطلبات المعلقة المطابقة لـ `ride_type` وقبولها (`accepted`)
+- إدارة الرحلة النشطة: وصول → بدء → إنهاء مع حساب المسافة والتكلفة
 
 ## هيكل المشروع
 
@@ -55,6 +59,10 @@ src/
   lib/geo.js
   context/AuthContext.jsx
   context/RideContext.jsx
+  context/CaptainContext.jsx
   components/
   screens/
+  screens/captain/
 ```
+
+مسارات الكابتن: `/captain/signin` · `/captain/signup` · `/captain/dashboard` · `/captain/ride`
