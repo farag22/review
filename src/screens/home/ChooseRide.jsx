@@ -6,12 +6,10 @@ import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
 import { formatDistance, formatEgp } from "../../lib/geo";
 
-const PAYMENT_LABELS = {
-  cash: "نقدًا",
-  wallet: "المحفظة",
-  card: "بطاقة",
-  bank: "تحويل بنكي",
-};
+const QUICK_PAY = [
+  { id: "cash", label: "نقدًا" },
+  { id: "wallet", label: "محفظة" },
+];
 
 export default function ChooseRide() {
   const navigate = useNavigate();
@@ -23,6 +21,7 @@ export default function ChooseRide() {
     destination,
     route,
     paymentMethod,
+    setPaymentMethod,
   } = useRide();
 
   useEffect(() => {
@@ -32,6 +31,7 @@ export default function ChooseRide() {
   const tripHint = route
     ? `${formatDistance(route.distanceKm)} · ${route.durationMin} د`
     : "جاري حساب المسار...";
+  const payId = paymentMethod === "wallet" ? "wallet" : "cash";
 
   return (
     <div className="ride-live">
@@ -42,7 +42,7 @@ export default function ChooseRide() {
           pickup={pickup}
           destination={destination}
           path={route?.path}
-          fitPadding={{ paddingTopLeft: [36, 92], paddingBottomRight: [36, 390] }}
+          fitPadding={{ paddingTopLeft: [36, 92], paddingBottomRight: [36, 360] }}
         />
       </div>
 
@@ -66,17 +66,14 @@ export default function ChooseRide() {
       </div>
 
       <div className="ride-live-sheet">
-        <div className="choose-ride-sheet rounded-t-[28px] border-t border-white/10 px-4 pt-3 pb-[calc(18px+env(safe-area-inset-bottom))]">
+        <div className="choose-ride-sheet rounded-t-[28px] border-t border-white/10 px-4 pt-3 pb-[calc(14px+env(safe-area-inset-bottom))]">
           <div className="flex justify-center pb-3">
             <span className="w-12 h-1.5 rounded-full bg-white/20" />
           </div>
 
-          <div className="flex items-end justify-between px-1 mb-3">
-            <p className="text-white font-extrabold text-[17px]">اختر الخدمة</p>
-            <p className="text-white/45 text-[12px]">{rideOptions.length} خيارات</p>
-          </div>
+          <p className="text-white font-extrabold text-[16px] px-0.5 mb-2.5">خيارات التوصيل</p>
 
-          <div className="max-h-[38vh] overflow-y-auto space-y-2.5 pr-0.5">
+          <div className="max-h-[36vh] overflow-y-auto divide-y divide-white/8 rounded-2xl bg-slate-900/55 backdrop-blur-md border border-white/10">
             {rideOptions.map((r) => {
               const active = selectedRide?.id === r.id;
               return (
@@ -84,27 +81,25 @@ export default function ChooseRide() {
                   key={r.id}
                   type="button"
                   onClick={() => setSelectedRide(r)}
-                  className={`ride-option-card w-full flex items-center gap-3 p-3.5 rounded-2xl bg-slate-900/80 backdrop-blur-md border transition-all duration-200 ${
-                    active
-                      ? "is-active border-emerald-400/80"
-                      : "border-white/10 hover:border-white/25"
+                  className={`ride-option-row w-full flex items-center gap-3 px-3.5 py-3 text-right transition-colors ${
+                    active ? "is-active bg-emerald-400/10" : "hover:bg-white/5"
                   }`}
                 >
-                  <RideTypeIcon type={r.id} size={50} active={active} />
-                  <div className="flex-1 text-right min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-extrabold text-[15px] text-white truncate">{r.label}</p>
-                      <span className="text-[11px] text-white/40 shrink-0">{r.seats} مقاعد</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1 text-white/55">
-                      <ClockIcon size={13} color="currentColor" />
-                      <p className="text-[12px]">وصول تقريبي خلال {r.eta} د</p>
+                  <RideTypeIcon type={r.id} size={46} active={active} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-extrabold text-[14px] text-white truncate leading-5">{r.label}</p>
+                    <div className="flex items-center gap-1 mt-0.5 text-white/50">
+                      <ClockIcon size={12} color="currentColor" />
+                      <span className="text-[12px]">{r.eta} د</span>
+                      <span className="text-white/20">·</span>
+                      <span className="text-[12px]">{r.seats} مقاعد</span>
                     </div>
                   </div>
                   <p
-                    className={`font-black text-[16px] tabular-nums shrink-0 ${
+                    className={`min-w-[72px] text-left font-black text-[17px] tabular-nums leading-none ${
                       active ? "text-emerald-300" : "text-white"
                     }`}
+                    dir="ltr"
                   >
                     {formatEgp(r.price)}
                   </p>
@@ -113,27 +108,37 @@ export default function ChooseRide() {
             })}
           </div>
 
-          <div className="mt-4 flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => navigate("/wallet")}
-              className="h-14 px-3.5 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-white/10 flex items-center gap-2 shrink-0"
-              aria-label="طريقة الدفع"
-            >
-              <span className="w-9 h-9 rounded-xl bg-emerald-400/15 flex items-center justify-center">
-                <PaymentMethodIcon method={paymentMethod} size={16} color="#6ee7b7" />
-              </span>
-              <span className="text-[12px] font-bold text-white">
-                {PAYMENT_LABELS[paymentMethod] || "نقدًا"}
-              </span>
-            </button>
+          <div className="mt-3.5 flex items-stretch gap-2.5">
+            <div className="h-14 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-white/10 p-1 flex items-center shrink-0">
+              {QUICK_PAY.map((opt) => {
+                const on = payId === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setPaymentMethod(opt.id)}
+                    className={`h-full px-2.5 rounded-xl flex items-center gap-1.5 transition-colors ${
+                      on ? "bg-emerald-400/20 text-emerald-200" : "text-white/55"
+                    }`}
+                    aria-pressed={on}
+                  >
+                    <PaymentMethodIcon
+                      method={opt.id}
+                      size={14}
+                      color={on ? "#6ee7b7" : "rgba(255,255,255,0.55)"}
+                    />
+                    <span className="text-[12px] font-bold">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               disabled={!selectedRide || !destination?.lat}
               onClick={() => navigate("/confirm-ride")}
               className="flex-1 h-14 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[16px] shadow-[0_10px_28px_rgba(16,185,129,0.38)] active:bg-emerald-400 disabled:opacity-40 disabled:pointer-events-none transition-colors"
             >
-              اختر الخدمة
+              اطلب الآن
             </button>
           </div>
         </div>

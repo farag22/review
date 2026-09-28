@@ -80,6 +80,10 @@ body {
     inset 0 0 18px rgba(16, 185, 129, 0.08);
 }
 
+.ride-option-row.is-active {
+  box-shadow: inset 3px 0 0 #34d399;
+}
+
 @keyframes sd-pulse {
   0% { transform: scale(0.7); opacity: 0.55; }
   100% { transform: scale(1.35); opacity: 0; }
