@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { formatEgp } from "../../lib/geo";
+import { ensureAdminProfile, isAdminUser } from "../../lib/admin";
 
 const TYPE_LABELS = {
   economy: "اقتصادي",
@@ -62,9 +63,10 @@ export default function AdminDashboard() {
     let cancelled = false;
     async function guard() {
       if (!user?.id) return;
+      await ensureAdminProfile(user);
       const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
       if (cancelled) return;
-      if (data?.role !== "admin") {
+      if (!isAdminUser(user, data?.role)) {
         navigate("/admin/signin", { replace: true });
         return;
       }

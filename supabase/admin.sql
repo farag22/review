@@ -42,7 +42,13 @@ drop policy if exists "admins read wallets" on public.wallets;
 create policy "admins read wallets" on public.wallets
   for select using (public.is_admin());
 
--- عيّن حسابك أدمن بعد التسجيل (بدّل الإيميل):
--- update public.profiles
--- set role = 'admin'
--- where id = (select id from auth.users where email = 'admin@example.com');
+-- عيّن حساب أدمن (بدّل الإيميل). ينشئ صف profiles إن لم يوجد:
+-- insert into public.profiles (id, full_name, role)
+-- select id, coalesce(raw_user_meta_data->>'full_name', split_part(email, '@', 1)), 'admin'
+-- from auth.users
+-- where lower(email) = lower('Farag20014@gmail.com')
+-- on conflict (id) do update set role = excluded.role;
+--
+-- update auth.users
+-- set raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
+-- where lower(email) = lower('Farag20014@gmail.com');

@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { PrimaryButton, TextField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
+import { ensureAdminProfile, isAdminUser } from "../../lib/admin";
 
 export default function AdminSignIn() {
   const navigate = useNavigate();
   const { signInWithEmail } = useAuth();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("Farag20014@gmail.com");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,20 +23,24 @@ export default function AdminSignIn() {
       setError("البريد الإلكتروني أو كلمة السر غير صحيحة");
       return;
     }
-    const userId = data?.user?.id;
-    if (!userId) {
+    const user = data?.user;
+    if (!user?.id) {
       setLoading(false);
       setError("تعذر تسجيل الدخول");
       return;
     }
+
+    await ensureAdminProfile(user);
+
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
-      .eq("id", userId)
+      .select("id, role")
+      .eq("id", user.id)
       .maybeSingle();
+
     setLoading(false);
-    if (profile?.role !== "admin") {
-      setError("هذا الحساب ليس حساب إدارة. عيّن role=admin من SQL Editor");
+    if (!isAdminUser(user, profile?.role)) {
+      setError("هذا الحساب ليس حساب إدارة. استخدم Farag20014@gmail.com");
       return;
     }
     navigate("/admin/dashboard");
