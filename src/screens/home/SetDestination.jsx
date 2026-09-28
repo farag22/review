@@ -27,8 +27,9 @@ export default function SetDestination() {
       try {
         const rows = await searchPlaces(q, pickup);
         setResults(rows);
+        setError(rows.length ? "" : "لا توجد نتائج مطابقة");
       } catch {
-        setError("تعذر البحث، تحقق من الاتصال");
+        setError("تعذر البحث حالياً، أعد المحاولة");
       } finally {
         setSearching(false);
       }

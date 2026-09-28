@@ -1,4 +1,5 @@
 const NOMINATIM = "https://nominatim.openstreetmap.org";
+const PHOTON = "https://photon.komoot.io";
 const OSRM = "https://router.project-osrm.org";
 
 export const BANHA = { lat: 30.466, lng: 31.185 };
@@ -30,21 +31,60 @@ export function formatEgp(amount) {
   return `${n.toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م`;
 }
 
-function nominatimHeaders() {
+function jsonHeaders() {
   return { Accept: "application/json" };
 }
 
-export async function reverseGeocode(lat, lng) {
-  const url = `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=jsonv2&accept-language=ar`;
-  const res = await fetch(url, { headers: nominatimHeaders() });
-  if (!res.ok) throw new Error("تعذر تحديد العنوان");
-  const data = await res.json();
+async function fetchJson(url, ms = 8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { headers: jsonHeaders(), signal: ctrl.signal });
+    if (!res.ok) throw new Error("تعذر جلب البيانات");
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function photonLabel(props = {}) {
+  const parts = [props.name, props.street, props.district || props.suburb, props.city || props.town || props.village || props.county, props.state]
+    .filter(Boolean);
+  return [...new Set(parts)].slice(0, 3).join("، ") || props.country || "موقع";
+}
+
+function photonPlace(feature) {
+  const props = feature?.properties || {};
+  const [lng, lat] = feature?.geometry?.coordinates || [];
   return {
-    lat,
-    lng,
-    label: shortenAddress(data),
-    address: data.display_name || "",
+    lat: Number(lat),
+    lng: Number(lng),
+    label: photonLabel(props),
+    address: [props.name, props.street, props.city, props.state, props.country].filter(Boolean).join("، "),
   };
+}
+
+export async function reverseGeocode(lat, lng) {
+  try {
+    const data = await fetchJson(`${PHOTON}/reverse?lat=${lat}&lon=${lng}&lang=ar`);
+    const place = photonPlace(data?.features?.[0]);
+    if (place?.lat) return { ...place, lat, lng };
+  } catch {
+    /* fallback */
+  }
+  try {
+    const data = await fetchJson(
+      `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=jsonv2&accept-language=ar`
+    );
+    return {
+      lat,
+      lng,
+      label: shortenAddress(data),
+      address: data.display_name || "",
+    };
+  } catch {
+    return { lat, lng, label: "موقعك الحالي", address: "" };
+  }
 }
 
 function shortenAddress(data) {
@@ -54,9 +94,19 @@ function shortenAddress(data) {
   return parts.slice(0, 3).join("، ") || data.display_name || "الموقع الحالي";
 }
 
-export async function searchPlaces(query, { lat, lng } = {}) {
-  const q = String(query || "").trim();
-  if (q.length < 2) return [];
+async function searchPhoton(q, { lat, lng } = {}) {
+  const params = new URLSearchParams({ q, limit: "8", lang: "ar" });
+  if (lat != null && lng != null) {
+    params.set("lat", String(lat));
+    params.set("lon", String(lng));
+  }
+  const data = await fetchJson(`${PHOTON}/api/?${params}`);
+  return (data?.features || [])
+    .map(photonPlace)
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+}
+
+async function searchNominatim(q, { lat, lng } = {}) {
   const params = new URLSearchParams({
     q,
     format: "jsonv2",
@@ -69,15 +119,29 @@ export async function searchPlaces(query, { lat, lng } = {}) {
     params.set("viewbox", `${lng - 0.35},${lat + 0.35},${lng + 0.35},${lat - 0.35}`);
     params.set("bounded", "0");
   }
-  const res = await fetch(`${NOMINATIM}/search?${params}`, { headers: nominatimHeaders() });
-  if (!res.ok) throw new Error("تعذر البحث عن الأماكن");
-  const rows = await res.json();
-  return rows.map((row) => ({
+  const rows = await fetchJson(`${NOMINATIM}/search?${params}`);
+  return (rows || []).map((row) => ({
     lat: Number(row.lat),
     lng: Number(row.lon),
     label: row.name || shortenAddress(row),
     address: row.display_name,
   }));
+}
+
+export async function searchPlaces(query, { lat, lng } = {}) {
+  const q = String(query || "").trim();
+  if (q.length < 2) return [];
+  try {
+    const photon = await searchPhoton(q, { lat, lng });
+    if (photon.length) return photon;
+  } catch {
+    /* fallback */
+  }
+  try {
+    return await searchNominatim(q, { lat, lng });
+  } catch {
+    return [];
+  }
 }
 
 export async function getRoute(from, to, extras = []) {

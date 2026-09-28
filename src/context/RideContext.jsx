@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { BANHA, calcFare, getFareProfile, getRoute, reverseGeocode, watchPosition } from "../lib/geo";
+import { BANHA, calcFare, getFareProfile, getRoute, haversineKm, reverseGeocode, watchPosition } from "../lib/geo";
 
 const RideContext = createContext(null);
 
@@ -28,6 +28,7 @@ export function RideProvider({ children }) {
   const [locationError, setLocationError] = useState("");
   const [gpsReady, setGpsReady] = useState(false);
   const activeRideRef = useRef(null);
+  const lastGeoRef = useRef({ lat: null, lng: null, at: 0 });
 
   useEffect(() => {
     activeRideRef.current = activeRide;
@@ -39,13 +40,23 @@ export function RideProvider({ children }) {
         setGpsReady(true);
         setLocationError("");
         if (activeRideRef.current) return;
+        setPickup((prev) => {
+          if (prev?.manual) return { ...prev, accuracy: coords.accuracy };
+          return {
+            ...prev,
+            lat: coords.lat,
+            lng: coords.lng,
+            accuracy: coords.accuracy,
+            label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "موقعك الحالي",
+          };
+        });
+        const last = lastGeoRef.current;
+        const moved = !last.lat || haversineKm(last, coords) >= 0.08;
+        if (!moved && Date.now() - last.at < 45000) return;
+        lastGeoRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
         try {
           const place = await reverseGeocode(coords.lat, coords.lng);
-          setPickup((prev) => {
-            const locked = prev?.manual;
-            if (locked) return { ...prev, accuracy: coords.accuracy };
-            return { ...place, accuracy: coords.accuracy };
-          });
+          setPickup((prev) => (prev?.manual ? prev : { ...place, accuracy: coords.accuracy }));
         } catch {
           setPickup((prev) =>
             prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng }
