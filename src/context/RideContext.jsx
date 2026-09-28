@@ -1,7 +1,16 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { BANHA, calcFare, getFareProfile, getRoute, reverseGeocode, watchPosition } from "../lib/geo";
+import {
+  BANHA,
+  calcFare,
+  geoErrorMessage,
+  getCurrentCoords,
+  getFareProfile,
+  getRoute,
+  reverseGeocode,
+  watchPosition,
+} from "../lib/geo";
 
 const RideContext = createContext(null);
 
@@ -28,34 +37,59 @@ export function RideProvider({ children }) {
   const [locationError, setLocationError] = useState("");
   const [gpsReady, setGpsReady] = useState(false);
   const activeRideRef = useRef(null);
+  const lastGpsRef = useRef(null);
 
   useEffect(() => {
     activeRideRef.current = activeRide;
   }, [activeRide]);
 
+  async function applyGps(coords) {
+    if (!coords?.lat) return;
+    lastGpsRef.current = coords;
+    setGpsReady(true);
+    setLocationError("");
+    if (activeRideRef.current) return;
+    setPickup((prev) => {
+      if (prev?.manual) return { ...prev, accuracy: coords.accuracy };
+      if (prev?.lat === coords.lat && prev?.lng === coords.lng) return prev;
+      return {
+        ...prev,
+        lat: coords.lat,
+        lng: coords.lng,
+        accuracy: coords.accuracy,
+        label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "موقعك الحالي",
+      };
+    });
+    try {
+      const place = await reverseGeocode(coords.lat, coords.lng);
+      setPickup((prev) => {
+        if (prev?.manual) return prev;
+        if (lastGpsRef.current && lastGpsRef.current !== coords) return prev;
+        return { ...place, accuracy: coords.accuracy };
+      });
+    } catch {
+      setPickup((prev) =>
+        prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng }
+      );
+    }
+  }
+
+  async function refreshLocation() {
+    setLocationError("");
+    try {
+      const coords = await getCurrentCoords();
+      await applyGps(coords);
+    } catch (err) {
+      setGpsReady(false);
+      setLocationError(geoErrorMessage(err));
+    }
+  }
+
   useEffect(() => {
-    const stop = watchPosition(
-      async (coords) => {
-        setGpsReady(true);
-        setLocationError("");
-        if (activeRideRef.current) return;
-        try {
-          const place = await reverseGeocode(coords.lat, coords.lng);
-          setPickup((prev) => {
-            const locked = prev?.manual;
-            if (locked) return { ...prev, accuracy: coords.accuracy };
-            return { ...place, accuracy: coords.accuracy };
-          });
-        } catch {
-          setPickup((prev) =>
-            prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng }
-          );
-        }
-      },
-      () => {
-        setLocationError("فعّل إذن الموقع لتحديد نقطة الانطلاق بدقة");
-      }
-    );
+    const stop = watchPosition(applyGps, (err) => {
+      setGpsReady(false);
+      setLocationError(geoErrorMessage(err));
+    });
     return stop;
   }, []);
 
@@ -248,6 +282,7 @@ export function RideProvider({ children }) {
     savedPlaces,
     locationError,
     gpsReady,
+    refreshLocation,
     requestRide,
     updateRideStatus,
     cancelRide,
