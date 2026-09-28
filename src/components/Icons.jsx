@@ -263,3 +263,79 @@ export function PaymentMethodIcon({ method = "cash", size = 18, color = "#fff" }
   if (method === "bank") return <BankIcon size={size} color={color} />;
   return <CashIcon size={size} color={color} />;
 }
+
+export function HelpIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke={color} {...base} />
+      <path d="M9.4 9.2a2.6 2.6 0 1 1 3.4 2.5c-.7.3-1.3.8-1.3 1.6V14" stroke={color} {...base} />
+      <circle cx="12" cy="17" r="0.9" fill={color} />
+    </svg>
+  );
+}
+
+export function InboxIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 7.5L12 12l8-4.5V18a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V7.5z" stroke={color} {...base} />
+      <path d="M4 7.5L12 3l8 4.5" stroke={color} {...base} />
+    </svg>
+  );
+}
+
+export function SafetyIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3z" stroke={color} {...base} />
+      <path d="M9 12l2 2 4-4" stroke={color} {...base} />
+    </svg>
+  );
+}
+
+export function PromoIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 10.5L10.5 4l9.5 9.5L13.5 20 4 10.5z" stroke={color} {...base} />
+      <circle cx="9" cy="9" r="1.3" fill={color} />
+    </svg>
+  );
+}
+
+export function SettingsIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="3" stroke={color} {...base} />
+      <path
+        d="M19.4 13a7.7 7.7 0 0 0 .1-2l2-1.5-2-3.4-2.4.5a7.6 7.6 0 0 0-1.7-1L13 3h-2l-.4 2.6a7.6 7.6 0 0 0-1.7 1L6.5 6.1l-2 3.4 2 1.5a7.7 7.7 0 0 0 .1 2l-2 1.5 2 3.4 2.4-.5a7.6 7.6 0 0 0 1.7 1L11 21h2l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.4.5 2-3.4-2-1.5z"
+        stroke={color}
+        {...base}
+      />
+    </svg>
+  );
+}
+
+export function UserIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="8" r="3.2" stroke={color} {...base} />
+      <path d="M5 19c1.2-3.2 3.7-5 7-5s5.8 1.8 7 5" stroke={color} {...base} />
+    </svg>
+  );
+}
+
+export function LogoutIcon({ size = 18, color = "#fff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" stroke={color} {...base} />
+      <path d="M14 8l5 4-5 4M9 12h10" stroke={color} {...base} />
+    </svg>
+  );
+}
+
+export function ChevronIcon({ size = 16, color = "rgba(255,255,255,0.35)" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M15 6l-6 6 6 6" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
