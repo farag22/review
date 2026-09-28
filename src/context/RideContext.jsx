@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { BANHA, calcFare, getRoute, reverseGeocode, watchPosition } from "../lib/geo";
+import { BANHA, calcFare, getFareProfile, getRoute, reverseGeocode, watchPosition } from "../lib/geo";
 
 const RideContext = createContext(null);
 
 const DEFAULT_TYPES = [
-  { id: "economy", label: "اقتصادي", seats: 4, base_fare: 12, per_km: 4.5, per_min: 0.35 },
-  { id: "comfort", label: "Comfort", seats: 4, base_fare: 18, per_km: 6.5, per_min: 0.5 },
-  { id: "masseya", label: "Masseya", seats: 4, base_fare: 15, per_km: 5.5, per_min: 0.4 },
-  { id: "tuktuk", label: "توك توك", seats: 3, base_fare: 8, per_km: 3.2, per_min: 0.25 },
-  { id: "scooter", label: "سكوتر", seats: 1, base_fare: 7, per_km: 3.0, per_min: 0.2 },
+  { id: "economy", label: "Saver", seats: 4, base_fare: 16, per_km: 5.25, per_min: 0.32 },
+  { id: "comfort", label: "Comfort", seats: 4, base_fare: 24, per_km: 7.6, per_min: 0.5 },
+  { id: "masseya", label: "Masseya", seats: 4, base_fare: 19, per_km: 6.15, per_min: 0.4 },
+  { id: "tuktuk", label: "توك توك", seats: 3, base_fare: 10, per_km: 3.45, per_min: 0.18 },
+  { id: "scooter", label: "سكوتر", seats: 1, base_fare: 8, per_km: 2.85, per_min: 0.12 },
 ];
 
 export function RideProvider({ children }) {
@@ -104,13 +104,33 @@ export function RideProvider({ children }) {
   const rideOptions = useMemo(() => {
     const distanceKm = route?.distanceKm || 0;
     const durationMin = route?.durationMin || 0;
-    return rideTypes.map((t) => ({
-      ...t,
-      eta: Math.max(2, Math.round((durationMin || 8) * 0.15) + 3),
-      price: calcFare(t, distanceKm, durationMin),
-      distanceKm,
-      durationMin,
-    }));
+    const options = rideTypes.map((t) => {
+      const profile = getFareProfile(t);
+      return {
+        ...t,
+        label: profile.label || t.label,
+        eta: Math.max(2, Math.round((durationMin || 8) * 0.18) + 2 + (profile.etaBias || 0)),
+        price: calcFare(t, distanceKm, durationMin),
+        cta: profile.cta || "اطلب الآن",
+        distanceKm,
+        durationMin,
+      };
+    });
+    const minEta = Math.min(...options.map((o) => o.eta));
+    const comfortPrice = options.find((o) => o.id === "comfort")?.price;
+    return options.map((o) => {
+      let badge = null;
+      if (comfortPrice && o.price < comfortPrice && (o.id === "economy" || o.id === "tuktuk" || o.id === "scooter")) {
+        const save = Math.round((1 - o.price / comfortPrice) * 100);
+        if (save >= 8) badge = { type: "save", text: `توفير ${save}%` };
+      }
+      if ((o.id === "tuktuk" || o.id === "scooter") && distanceKm > 0 && distanceKm <= 5) {
+        badge = { type: "local", text: "الأنسب للمنطقة" };
+      }
+      if (o.eta === minEta) badge = { type: "fast", text: "أسرع" };
+      if (o.id === "comfort") badge = { type: "fast", text: "أولوية" };
+      return { ...o, badge };
+    });
   }, [rideTypes, route]);
 
   async function refreshDriver(driverId) {

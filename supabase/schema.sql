@@ -62,11 +62,11 @@ create table if not exists public.ride_types (
 );
 
 insert into public.ride_types (id, label, seats, base_fare, per_km, per_min) values
-  ('economy', 'اقتصادي', 4, 12, 4.5, 0.35),
-  ('comfort', 'Comfort', 4, 18, 6.5, 0.5),
-  ('masseya', 'Masseya', 4, 15, 5.5, 0.4),
-  ('tuktuk', 'توك توك', 3, 8, 3.2, 0.25),
-  ('scooter', 'سكوتر', 1, 7, 3.0, 0.2)
+  ('economy', 'Saver', 4, 16, 5.25, 0.32),
+  ('comfort', 'Comfort', 4, 24, 7.6, 0.5),
+  ('masseya', 'Masseya', 4, 19, 6.15, 0.4),
+  ('tuktuk', 'توك توك', 3, 10, 3.45, 0.18),
+  ('scooter', 'سكوتر', 1, 8, 2.85, 0.12)
 on conflict (id) do update set
   label = excluded.label,
   seats = excluded.seats,

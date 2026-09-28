@@ -128,10 +128,83 @@ export function watchPosition(onOk, onErr) {
   return () => navigator.geolocation.clearWatch(id);
 }
 
+export const FARE_PROFILES = {
+  scooter: {
+    label: "سكوتر",
+    base: 8,
+    perKm: 2.85,
+    perMin: 0.12,
+    minFare: 10,
+    shortKm: 4,
+    shortPerKm: 2.15,
+    etaBias: -1,
+    cta: "اطلب سكوتر",
+  },
+  tuktuk: {
+    label: "توك توك",
+    base: 10,
+    perKm: 3.45,
+    perMin: 0.18,
+    minFare: 12,
+    shortKm: 5,
+    shortPerKm: 2.55,
+    etaBias: 0,
+    cta: "اطلب توك توك",
+  },
+  economy: {
+    label: "Saver",
+    base: 16,
+    perKm: 5.25,
+    perMin: 0.32,
+    minFare: 20,
+    etaBias: 2,
+    cta: "اطلب Saver",
+  },
+  masseya: {
+    label: "Masseya",
+    base: 19,
+    perKm: 6.15,
+    perMin: 0.4,
+    minFare: 24,
+    etaBias: 1,
+    cta: "اطلب Masseya",
+  },
+  comfort: {
+    label: "Comfort",
+    base: 24,
+    perKm: 7.6,
+    perMin: 0.5,
+    minFare: 30,
+    etaBias: -1,
+    cta: "اختر أولوية",
+  },
+};
+
+export function getFareProfile(rideType) {
+  const id = String(rideType?.id || "").toLowerCase();
+  const preset = FARE_PROFILES[id];
+  if (preset) return { id, ...preset };
+  return {
+    id,
+    label: rideType?.label,
+    base: Number(rideType?.base_fare) || 15,
+    perKm: Number(rideType?.per_km) || 5,
+    perMin: Number(rideType?.per_min) || 0.35,
+    minFare: Number(rideType?.base_fare) || 15,
+    etaBias: 0,
+    cta: "اطلب الآن",
+  };
+}
+
 export function calcFare(rideType, distanceKm, durationMin) {
-  const base = Number(rideType?.base_fare) || 10;
-  const perKm = Number(rideType?.per_km) || 5;
-  const perMin = Number(rideType?.per_min) || 0.4;
-  const raw = base + perKm * distanceKm + perMin * durationMin;
-  return Math.max(base, Math.round(raw));
+  const profile = getFareProfile(rideType);
+  const km = Math.max(0, Number(distanceKm) || 0);
+  const mins = Math.max(0, Number(durationMin) || 0);
+  let distanceCost = km * profile.perKm;
+  if (profile.shortKm) {
+    const shortKm = Math.min(km, profile.shortKm);
+    distanceCost = shortKm * profile.shortPerKm + Math.max(0, km - profile.shortKm) * profile.perKm;
+  }
+  const raw = profile.base + distanceCost + mins * profile.perMin;
+  return Math.max(profile.minFare, Math.round(raw));
 }
