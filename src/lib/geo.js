@@ -34,21 +34,11 @@ function nominatimHeaders() {
   return { Accept: "application/json" };
 }
 
-async function fetchJson(url, ms = 7000) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  try {
-    const res = await fetch(url, { headers: nominatimHeaders(), signal: ctrl.signal });
-    if (!res.ok) throw new Error("تعذر جلب البيانات");
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export async function reverseGeocode(lat, lng) {
   const url = `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=jsonv2&accept-language=ar`;
-  const data = await fetchJson(url);
+  const res = await fetch(url, { headers: nominatimHeaders() });
+  if (!res.ok) throw new Error("تعذر تحديد العنوان");
+  const data = await res.json();
   return {
     lat,
     lng,
@@ -79,7 +69,9 @@ export async function searchPlaces(query, { lat, lng } = {}) {
     params.set("viewbox", `${lng - 0.35},${lat + 0.35},${lng + 0.35},${lat - 0.35}`);
     params.set("bounded", "0");
   }
-  const rows = await fetchJson(`${NOMINATIM}/search?${params}`);
+  const res = await fetch(`${NOMINATIM}/search?${params}`, { headers: nominatimHeaders() });
+  if (!res.ok) throw new Error("تعذر البحث عن الأماكن");
+  const rows = await res.json();
   return rows.map((row) => ({
     lat: Number(row.lat),
     lng: Number(row.lon),
@@ -117,76 +109,23 @@ function fallbackRoute(points) {
   };
 }
 
-export function geoErrorMessage(err) {
-  const code = err?.code;
-  if (code === 1) return "إذن الموقع مرفوض. فعّله من إعدادات المتصفح ثم أعد المحاولة";
-  if (code === 2) return "تعذر قراءة الموقع حالياً";
-  if (code === 3) return "انتهت مهلة تحديد الموقع، أعد المحاولة";
-  if (!navigator.geolocation) return "المتصفح لا يدعم تحديد الموقع";
-  if (typeof window !== "undefined" && !window.isSecureContext) {
-    return "تحديد الموقع يتطلب اتصالاً آمناً (HTTPS)";
-  }
-  return err?.message || "تعذر تحديد الموقع";
-}
-
-function readCoords(pos) {
-  return {
-    lat: pos.coords.latitude,
-    lng: pos.coords.longitude,
-    accuracy: pos.coords.accuracy,
-  };
-}
-
-function getOnce(options) {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(Object.assign(new Error("المتصفح لا يدعم تحديد الموقع"), { code: 2 }));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition((pos) => resolve(readCoords(pos)), reject, options);
-  });
-}
-
-export async function getCurrentCoords() {
-  try {
-    return await getOnce({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
-  } catch (err) {
-    if (err?.code === 1) throw err;
-    return getOnce({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
-  }
-}
-
 export function watchPosition(onOk, onErr) {
   if (!navigator.geolocation) {
-    onErr?.(Object.assign(new Error("المتصفح لا يدعم تحديد الموقع"), { code: 2 }));
+    onErr?.(new Error("المتصفح لا يدعم تحديد الموقع"));
     return () => {};
   }
-  let cancelled = false;
-  let watchId = null;
-
-  getCurrentCoords()
-    .then((coords) => {
-      if (!cancelled) onOk(coords);
-    })
-    .catch((err) => {
-      if (!cancelled) onErr?.(err);
-    })
-    .finally(() => {
-      if (cancelled) return;
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => onOk(readCoords(pos)),
-        (err) => {
-          if (err?.code !== 1) return;
-          onErr?.(err);
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 15000 }
-      );
-    });
-
-  return () => {
-    cancelled = true;
-    if (watchId != null) navigator.geolocation.clearWatch(watchId);
-  };
+  const id = navigator.geolocation.watchPosition(
+    (pos) => {
+      onOk({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      });
+    },
+    onErr,
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 8000 }
+  );
+  return () => navigator.geolocation.clearWatch(id);
 }
 
 export const FARE_PROFILES = {

@@ -8,7 +8,7 @@ import { searchPlaces } from "../../lib/geo";
 export default function SetDestination() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { pickup, destination, setDestination, stops, savedPlaces, savePlace, locationError, refreshLocation } = useRide();
+  const { pickup, destination, setDestination, stops, savedPlaces, savePlace } = useRide();
   const [query, setQuery] = useState(destination?.label || "");
   const [tab, setTab] = useState(location.state?.placeLabel || "fav");
   const [results, setResults] = useState([]);
@@ -56,18 +56,10 @@ export default function SetDestination() {
     <div className="flex-1 flex flex-col">
       <ScreenHeader title="تحديد الوجهة" />
       <div className="px-5 space-y-3">
-        <button
-          type="button"
-          onClick={refreshLocation}
-          className="w-full h-12 rounded-xl bg-white border border-black/10 px-3 flex items-center gap-2"
-        >
+        <div className="h-12 rounded-xl bg-white border border-black/10 px-3 flex items-center gap-2">
           <PinIcon size={14} color="#0b7350" />
-          <span className="text-[13px] text-ink/60 truncate flex-1 text-right">
-            {pickup?.label || "الموقع الحالي"}
-          </span>
-          <span className="text-[11px] font-bold text-brand-600 shrink-0">تحديث</span>
-        </button>
-        {locationError && <p className="text-red-500 text-[12px]">{locationError}</p>}
+          <span className="text-[13px] text-ink/60 truncate">{pickup?.label || "الموقع الحالي"}</span>
+        </div>
         <div className="h-12 rounded-xl bg-brand-50 border border-brand-100 px-3 flex items-center gap-2">
           <SearchIcon size={16} />
           <input
