@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView from "../../components/MapView";
+import RideLiveOverlay from "../../components/RideLiveOverlay";
 import { useRide } from "../../context/RideContext";
 import { supabase } from "../../lib/supabase";
 
@@ -8,6 +9,20 @@ export default function FindingDriver() {
   const navigate = useNavigate();
   const { pickup, destination, selectedRide, activeRide, cancelRide, refreshDriver, setActiveRide } = useRide();
   const [status, setStatus] = useState(activeRide?.status || "requested");
+  const mapPickup = useMemo(
+    () =>
+      activeRide?.pickup_lat != null
+        ? { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng, label: activeRide.pickup_address }
+        : pickup,
+    [activeRide?.pickup_lat, activeRide?.pickup_lng, activeRide?.pickup_address, pickup]
+  );
+  const mapDestination = useMemo(
+    () =>
+      activeRide?.dropoff_lat != null
+        ? { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng, label: activeRide.dropoff_address }
+        : destination,
+    [activeRide?.dropoff_lat, activeRide?.dropoff_lng, activeRide?.dropoff_address, destination]
+  );
 
   useEffect(() => {
     const rideId = activeRide?.id;
@@ -56,9 +71,9 @@ export default function FindingDriver() {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="relative flex-1">
-        <MapView height="100%" pickup={pickup} destination={destination}>
+    <div className="ride-live">
+      <div className="ride-live-map">
+        <MapView fill height="100%" pickup={mapPickup} destination={mapDestination}>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <span className="w-4 h-4 rounded-full bg-brand-600 animate-ping absolute" />
             <span className="w-4 h-4 rounded-full bg-brand-600" />
@@ -66,7 +81,13 @@ export default function FindingDriver() {
         </MapView>
       </div>
 
-      <div className="bg-white rounded-t-3xl -mt-6 px-6 pt-6 pb-8 shadow-[0_-8px_24px_rgba(0,0,0,0.06)]">
+      <RideLiveOverlay
+        badge="جاري البحث"
+        chatTitle="مراسلة السائق"
+        chatBody="الخريطة ظاهرة أثناء البحث. الاتصال والدردشة يتاحان بعد قبول الكابتن."
+      />
+
+      <div className="ride-live-sheet bg-white rounded-t-3xl px-6 pt-6 pb-8 shadow-[0_-8px_24px_rgba(0,0,0,0.06)]">
         <p className="text-center font-extrabold text-[16px]">
           {status === "accepted" ? "تم العثور على سائق" : "جاري البحث عن سائق قريب"}
         </p>

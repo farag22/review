@@ -5,14 +5,40 @@ import "leaflet/dist/leaflet.css";
 const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const ATTR = "&copy; OpenStreetMap";
 
-function divIcon(color, label) {
+function pointKey(point) {
+  if (!point || point.lat == null || point.lng == null) return "";
+  return `${Number(point.lat).toFixed(5)},${Number(point.lng).toFixed(5)}`;
+}
+
+function samePoint(a, b) {
+  return pointKey(a) === pointKey(b);
+}
+
+function routePathKey(path) {
+  if (!path || path.length < 2) return "";
+  const a = path[0];
+  const b = path[path.length - 1];
+  const lat0 = Number(Array.isArray(a) ? a[0] : a.lat).toFixed(4);
+  const lng0 = Number(Array.isArray(a) ? a[1] : a.lng).toFixed(4);
+  const lat1 = Number(Array.isArray(b) ? b[0] : b.lat).toFixed(4);
+  const lng1 = Number(Array.isArray(b) ? b[1] : b.lng).toFixed(4);
+  return `${path.length}:${lat0},${lng0}:${lat1},${lng1}`;
+}
+
+function divIcon(color, label, live) {
+  const pulse = live
+    ? `<span style="position:absolute;inset:-6px;border-radius:50%;border:2px solid ${color};opacity:.45;animation:sd-pulse 1.6s ease-out infinite"></span>`
+    : "";
   return L.divIcon({
     className: "sd-marker",
-    html: `<div style="
-      width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
-      background:${color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);
-      display:flex;align-items:center;justify-content:center;">
-      <span style="transform:rotate(45deg);color:#fff;font:700 11px Cairo,sans-serif">${label || ""}</span>
+    html: `<div style="position:relative;width:28px;height:28px;">
+      ${pulse}
+      <div style="
+        width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+        background:${color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);
+        display:flex;align-items:center;justify-content:center;">
+        <span style="transform:rotate(45deg);color:#fff;font:700 11px Cairo,sans-serif">${label || ""}</span>
+      </div>
     </div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 28],
@@ -26,27 +52,54 @@ export default function MapView({
   driver,
   path,
   userLocation,
+  follow = false,
+  fill = false,
   children,
 }) {
   const wrapRef = useRef(null);
   const mapRef = useRef(null);
-  const layersRef = useRef({ markers: L.layerGroup(), route: null });
+  const layersRef = useRef({
+    markers: null,
+    route: null,
+    pickup: null,
+    destination: null,
+    driver: null,
+    user: null,
+  });
+  const lastFitRef = useRef("");
+  const followRef = useRef(follow);
+  const pointsRef = useRef({ pickup, destination, driver, path, userLocation });
+  followRef.current = follow;
+  pointsRef.current = { pickup, destination, driver, path, userLocation };
+  const pickupKey = pointKey(pickup);
+  const destinationKey = pointKey(destination);
+  const driverKey = pointKey(driver);
+  const userKey = pointKey(userLocation);
+  const pathKey = routePathKey(path);
 
   useEffect(() => {
     if (!wrapRef.current || mapRef.current) return undefined;
-    const center = userLocation || pickup || { lat: 30.466, lng: 31.185 };
+    const center = userLocation || pickup || driver || { lat: 30.466, lng: 31.185 };
     const map = L.map(wrapRef.current, {
       zoomControl: false,
       attributionControl: true,
     }).setView([center.lat, center.lng], 14);
     L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19 }).addTo(map);
-    layersRef.current.markers.addTo(map);
+    layersRef.current.markers = L.layerGroup().addTo(map);
     mapRef.current = map;
-    const onResize = () => map.invalidateSize();
-    window.addEventListener("resize", onResize);
-    setTimeout(onResize, 80);
+
+    const resize = () => map.invalidateSize({ animate: false });
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrapRef.current);
+    window.addEventListener("resize", resize);
+    const t1 = setTimeout(resize, 80);
+    const t2 = setTimeout(resize, 400);
+
     return () => {
-      window.removeEventListener("resize", onResize);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener("resize", resize);
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -54,43 +107,68 @@ export default function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const { markers } = layersRef.current;
-    markers.clearLayers();
-    const bounds = [];
+    const layers = layersRef.current;
+    if (!map || !layers.markers) return;
+    const { pickup, destination, driver, path, userLocation } = pointsRef.current;
 
-    function add(point, color, label) {
-      if (!point || point.lat == null) return;
-      L.marker([point.lat, point.lng], { icon: divIcon(color, label) }).addTo(markers);
-      bounds.push([point.lat, point.lng]);
+    function upsert(kind, point, color, label, live) {
+      if (!point || point.lat == null || point.lng == null) {
+        if (layers[kind]) {
+          layers.markers.removeLayer(layers[kind]);
+          layers[kind] = null;
+        }
+        return;
+      }
+      const latlng = [point.lat, point.lng];
+      if (layers[kind]) {
+        layers[kind].setLatLng(latlng);
+      } else {
+        layers[kind] = L.marker(latlng, { icon: divIcon(color, label, live) }).addTo(layers.markers);
+      }
     }
 
-    add(userLocation || pickup, "#0b7350", "أ");
-    add(destination, "#d9534f", "ب");
-    add(driver, "#1d4ed8", "س");
+    upsert("pickup", pickup, "#0b7350", "أ", false);
+    upsert("destination", destination, "#d9534f", "ب", false);
+    upsert("user", userLocation && !samePoint(userLocation, pickup) ? userLocation : null, "#0b7350", "أ", false);
+    upsert("driver", driver, "#1d4ed8", "س", Boolean(followRef.current || driver));
 
-    if (layersRef.current.route) {
-      map.removeLayer(layersRef.current.route);
-      layersRef.current.route = null;
-    }
     if (path?.length > 1) {
-      const line = L.polyline(path, { color: "#0b7350", weight: 4, opacity: 0.85 }).addTo(map);
-      layersRef.current.route = line;
-      line.getLatLngs().forEach((ll) => bounds.push([ll.lat, ll.lng]));
+      if (layers.route) {
+        layers.route.setLatLngs(path);
+      } else {
+        layers.route = L.polyline(path, { color: "#0b7350", weight: 4, opacity: 0.85 }).addTo(map);
+      }
+    } else if (layers.route) {
+      map.removeLayer(layers.route);
+      layers.route = null;
     }
 
-    if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
-    } else if (bounds.length === 1) {
-      map.setView(bounds[0], 15);
+    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}`;
+    if (fitKey !== lastFitRef.current) {
+      lastFitRef.current = fitKey;
+      const bounds = [];
+      if (pickup?.lat != null) bounds.push([pickup.lat, pickup.lng]);
+      if (destination?.lat != null) bounds.push([destination.lat, destination.lng]);
+      if (path?.length > 1) path.forEach((p) => bounds.push(p));
+      else if (driver?.lat != null) bounds.push([driver.lat, driver.lng]);
+      if (bounds.length > 1) {
+        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 16, animate: false });
+      } else if (bounds.length === 1) {
+        map.setView(bounds[0], 15, { animate: false });
+      }
+      map.invalidateSize({ animate: false });
+    } else if (followRef.current && driver?.lat != null) {
+      map.panTo([driver.lat, driver.lng], { animate: true, duration: 0.35 });
     }
-    map.invalidateSize();
-  }, [pickup, destination, driver, path, userLocation]);
+  }, [pickupKey, destinationKey, driverKey, userKey, pathKey]);
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden bg-[#dfeae3]" style={{ height: cssHeight, direction: "ltr" }}>
+    <div
+      className={`relative w-full overflow-hidden bg-[#dfeae3] ${fill ? "h-full min-h-[46vh] rounded-none" : "rounded-2xl"}`}
+      style={{ height: fill ? "100%" : cssHeight, minHeight: fill ? "46vh" : undefined, direction: "ltr" }}
+    >
       <div ref={wrapRef} className="absolute inset-0 z-0" />
       {children ? <div className="absolute inset-0 z-10 pointer-events-none">{children}</div> : null}
     </div>

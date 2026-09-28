@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { BANHA, calcFare, getRoute, reverseGeocode, watchPosition } from "../lib/geo";
@@ -27,12 +27,18 @@ export function RideProvider({ children }) {
   const [savedPlaces, setSavedPlaces] = useState([]);
   const [locationError, setLocationError] = useState("");
   const [gpsReady, setGpsReady] = useState(false);
+  const activeRideRef = useRef(null);
+
+  useEffect(() => {
+    activeRideRef.current = activeRide;
+  }, [activeRide]);
 
   useEffect(() => {
     const stop = watchPosition(
       async (coords) => {
         setGpsReady(true);
         setLocationError("");
+        if (activeRideRef.current) return;
         try {
           const place = await reverseGeocode(coords.lat, coords.lng);
           setPickup((prev) => {
@@ -161,6 +167,7 @@ export function RideProvider({ children }) {
     }
 
     setActiveRide(data);
+    activeRideRef.current = data;
     if (data.driver_id) await refreshDriver(data.driver_id);
     return data;
   }
@@ -173,6 +180,7 @@ export function RideProvider({ children }) {
     const { data, error } = await supabase.from("rides").update(patch).eq("id", activeRide.id).select().single();
     if (error) throw error;
     setActiveRide(data);
+    activeRideRef.current = data;
     return data;
   }
 
@@ -181,6 +189,7 @@ export function RideProvider({ children }) {
       await supabase.from("rides").update({ status: "cancelled" }).eq("id", activeRide.id);
     }
     setActiveRide(null);
+    activeRideRef.current = null;
     setDriver(null);
   }
 

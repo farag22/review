@@ -15,16 +15,60 @@ body {
   max-width: 430px;
   margin: 0 auto;
   min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   background: #f4f6f4;
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .screen-scroll {
   flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow-y: auto;
   padding-bottom: 24px;
+}
+
+.screen-scroll:has(.ride-live) {
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.ride-live {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ride-live-map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.ride-live-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.sd-overlay-btn {
+  pointer-events: auto;
+}
+
+@keyframes sd-pulse {
+  0% { transform: scale(0.7); opacity: 0.55; }
+  100% { transform: scale(1.35); opacity: 0; }
 }
 
 input:focus, textarea:focus, select:focus {
@@ -42,4 +86,10 @@ input:focus, textarea:focus, select:focus {
 .sd-marker {
   background: transparent !important;
   border: none !important;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 1;
 }

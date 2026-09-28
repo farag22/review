@@ -15,9 +15,11 @@ export function CaptainProvider({ children }) {
   const [pendingRides, setPendingRides] = useState([]);
   const [activeRide, setActiveRide] = useState(null);
   const [route, setRoute] = useState(null);
+  const [riderProfile, setRiderProfile] = useState(null);
   const [rideTypes, setRideTypes] = useState([]);
   const [error, setError] = useState("");
   const driverRef = useRef(null);
+  const lastGpsRef = useRef(null);
 
   useEffect(() => {
     driverRef.current = driver;
@@ -60,20 +62,27 @@ export function CaptainProvider({ children }) {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!driver?.id || !driver.is_online) return undefined;
+    if (!driver?.id) return undefined;
+    if (!driver.is_online && !activeRide) return undefined;
     const stop = watchPosition(
       async (coords) => {
         setLocation(coords);
+        const prev = lastGpsRef.current;
+        const moved = !prev || haversineKm(prev, coords) >= 0.02;
+        if (!moved) return;
+        lastGpsRef.current = coords;
         await supabase
           .from("drivers")
           .update({ lat: coords.lat, lng: coords.lng })
           .eq("id", driver.id);
-        setDriver((prev) => (prev ? { ...prev, lat: coords.lat, lng: coords.lng } : prev));
+        setDriver((prevDriver) =>
+          prevDriver ? { ...prevDriver, lat: coords.lat, lng: coords.lng } : prevDriver
+        );
       },
       () => setError("فعّل إذن الموقع لتحديث موقعك على الخريطة")
     );
     return stop;
-  }, [driver?.id, driver?.is_online]);
+  }, [driver?.id, driver?.is_online, activeRide?.id]);
 
   async function refreshPendingAndActive() {
     const current = driverRef.current;
@@ -131,22 +140,33 @@ export function CaptainProvider({ children }) {
   }, [driver?.id, driver?.is_online, driver?.ride_type]);
 
   useEffect(() => {
-    if (!activeRide || location?.lat == null) {
+    if (!activeRide?.id) {
       setRoute(null);
+      setRiderProfile(null);
       return undefined;
     }
     let cancelled = false;
     const pickup = { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
     const dropoff = { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng };
-    const from = location;
-    const to = activeRide.status === "in_progress" ? dropoff : pickup;
-    getRoute(from, to).then((r) => {
+    getRoute(pickup, dropoff).then((r) => {
       if (!cancelled) setRoute(r);
     });
+    if (activeRide.rider_id) {
+      supabase
+        .from("profiles")
+        .select("id, full_name, phone")
+        .eq("id", activeRide.rider_id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled) setRiderProfile(data || null);
+        });
+    } else {
+      setRiderProfile(null);
+    }
     return () => {
       cancelled = true;
     };
-  }, [activeRide?.id, activeRide?.status, location?.lat, location?.lng]);
+  }, [activeRide?.id, activeRide?.rider_id, activeRide?.pickup_lat, activeRide?.dropoff_lat]);
 
   async function patchDriver(fields) {
     if (!driver?.id) return null;
@@ -261,6 +281,7 @@ export function CaptainProvider({ children }) {
     pendingRides,
     activeRide,
     route,
+    riderProfile,
     rideTypes,
     error,
     setError,

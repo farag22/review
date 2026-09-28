@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView from "../../components/MapView";
+import RideLiveOverlay from "../../components/RideLiveOverlay";
 import { PrimaryButton } from "../../components/ui";
 import { useCaptain } from "../../context/CaptainContext";
 import { formatDistance, formatEgp, haversineKm } from "../../lib/geo";
@@ -13,10 +14,25 @@ const STEPS = [
 
 export default function CaptainActiveRide() {
   const navigate = useNavigate();
-  const { driver, location, activeRide, route, updateActiveStatus } = useCaptain();
+  const { driver, location, activeRide, route, riderProfile, updateActiveStatus } = useCaptain();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(null);
+
+  const pickup = useMemo(
+    () =>
+      activeRide
+        ? { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng, label: activeRide.pickup_address }
+        : null,
+    [activeRide?.id, activeRide?.pickup_lat, activeRide?.pickup_lng, activeRide?.pickup_address]
+  );
+  const destination = useMemo(
+    () =>
+      activeRide
+        ? { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng, label: activeRide.dropoff_address }
+        : null,
+    [activeRide?.id, activeRide?.dropoff_lat, activeRide?.dropoff_lng, activeRide?.dropoff_address]
+  );
 
   if (!activeRide && !done) {
     return (
@@ -51,17 +67,12 @@ export default function CaptainActiveRide() {
     );
   }
 
-  const pickup = { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng, label: activeRide.pickup_address };
-  const destination = {
-    lat: activeRide.dropoff_lat,
-    lng: activeRide.dropoff_lng,
-    label: activeRide.dropoff_address,
-  };
   const step = STEPS.find((s) => s.status === activeRide.status) || STEPS[0];
   const remainingKm =
     activeRide.status === "in_progress"
       ? haversineKm(location, destination)
       : haversineKm(location, pickup);
+  const riderPhone = riderProfile?.phone;
 
   async function handleNext() {
     setError("");
@@ -77,9 +88,11 @@ export default function CaptainActiveRide() {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="relative flex-1">
+    <div className="ride-live">
+      <div className="ride-live-map">
         <MapView
+          fill
+          follow
           height="100%"
           pickup={pickup}
           destination={destination}
@@ -88,7 +101,15 @@ export default function CaptainActiveRide() {
         />
       </div>
 
-      <div className="bg-white rounded-t-3xl -mt-6 px-5 pt-5 pb-6 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] space-y-4">
+      <RideLiveOverlay
+        badge="تتبع مباشر"
+        phone={riderPhone}
+        chatTitle="مراسلة الراكب"
+        chatBody="التتبع يعمل الآن. الدردشة تظهر فوق الخريطة طوال سير الرحلة."
+      />
+
+      <div className="ride-live-sheet bg-white rounded-t-3xl px-5 pt-5 pb-6 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] space-y-4">
+        <div className="w-10 h-1 rounded-full bg-black/10 mx-auto -mt-1" />
         <div className="flex items-center justify-between">
           <div>
             <p className="font-extrabold text-[16px]">{stepTitle(activeRide.status)}</p>
