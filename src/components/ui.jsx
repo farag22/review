@@ -26,15 +26,19 @@ export function GhostButton({ children, className = "", ...props }) {
   );
 }
 
-export function TextField({ label, ...props }) {
+export function TextField({ label, id, name, dir, className = "", ...props }) {
+  const fieldId = id || name;
   return (
-    <label className="block">
+    <label className="block" htmlFor={fieldId}>
       {label && (
         <span className="block text-[13px] text-ink/60 mb-1.5">{label}</span>
       )}
       <input
-        className="w-full h-13 py-3.5 px-4 rounded-xl bg-white border border-black/10
-          text-[15px] placeholder:text-ink/35 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        id={fieldId}
+        name={name}
+        dir={dir}
+        className={`w-full h-13 py-3.5 px-4 rounded-xl bg-white border border-black/10
+          text-[15px] placeholder:text-ink/35 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${className}`}
         {...props}
       />
     </label>

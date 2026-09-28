@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PrimaryButton, TextField } from "../../components/ui";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth, resolveEmailAndPhone } from "../../context/AuthContext";
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -27,8 +27,17 @@ export default function SignUp() {
       setError("كلمة السر غير متطابقة");
       return;
     }
+    const identity = resolveEmailAndPhone(form.email, form.phone);
+    if (!identity.email) {
+      setError("أدخل بريدًا إلكترونيًا صحيحًا في خانة الإيميل");
+      return;
+    }
     setLoading(true);
-    const { data, error } = await signUpWithEmail(form);
+    const { data, error } = await signUpWithEmail({
+      ...form,
+      email: identity.email,
+      phone: identity.phone,
+    });
     setLoading(false);
     if (error) {
       setError(error.message || "حدث خطأ، حاول مرة أخرى");
@@ -49,6 +58,8 @@ export default function SignUp() {
       <form onSubmit={handleSubmit} className="mt-8 space-y-4 flex-1 flex flex-col">
         <TextField
           label="الاسم بالكامل"
+          name="fullName"
+          autoComplete="name"
           placeholder="اكتب اسمك"
           value={form.fullName}
           onChange={(e) => update("fullName", e.target.value)}
@@ -56,7 +67,11 @@ export default function SignUp() {
         />
         <TextField
           label="البريد الإلكتروني"
+          name="email"
           type="email"
+          inputMode="email"
+          autoComplete="email"
+          dir="ltr"
           placeholder="name@example.com"
           value={form.email}
           onChange={(e) => update("email", e.target.value)}
@@ -64,7 +79,11 @@ export default function SignUp() {
         />
         <TextField
           label="رقم الهاتف (اختياري)"
+          name="phone"
           type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          dir="ltr"
           placeholder="01xxxxxxxxx"
           value={form.phone}
           onChange={(e) => update("phone", e.target.value)}

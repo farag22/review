@@ -50,7 +50,11 @@ export default function CaptainSignIn() {
       <form onSubmit={handleSubmit} className="mt-8 space-y-4 flex-1 flex flex-col">
         <TextField
           label="البريد الإلكتروني"
+          name="email"
           type="email"
+          inputMode="email"
+          autoComplete="email"
+          dir="ltr"
           placeholder="captain@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}

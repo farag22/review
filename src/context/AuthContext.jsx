@@ -23,24 +23,31 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signInWithEmail(email, password) {
+    const identity = resolveEmailAndPhone(email, "");
+    if (!identity.email) {
+      return { data: { user: null, session: null }, error: { message: "أدخل بريدًا إلكترونيًا صحيحًا" } };
+    }
     return supabase.auth.signInWithPassword({
-      email: normalizeEmail(email),
+      email: identity.email,
       password,
     });
   }
 
   async function signUpWithEmail({ fullName, email, phone, password }) {
-    const normalizedEmail = normalizeEmail(email);
+    const identity = resolveEmailAndPhone(email, phone);
+    if (!identity.email) {
+      return { data: { user: null, session: null }, error: { message: "أدخل بريدًا إلكترونيًا صحيحًا في خانة الإيميل" } };
+    }
     const { data, error } = await supabase.auth.signUp({
-      email: normalizedEmail,
+      email: identity.email,
       password,
-      options: { data: { full_name: fullName, phone: phone || null } },
+      options: { data: { full_name: fullName, phone: identity.phone } },
     });
     if (!error && data.user) {
       await supabase.from("profiles").upsert({
         id: data.user.id,
         full_name: fullName,
-        phone: phone || null,
+        phone: identity.phone,
       });
     }
     return { data, error };
@@ -55,17 +62,20 @@ export function AuthProvider({ children }) {
     plateNumber,
     rideType,
   }) {
-    const normalizedEmail = normalizeEmail(email);
+    const identity = resolveEmailAndPhone(email, phone);
+    if (!identity.email) {
+      return { data: { user: null, session: null }, error: { message: "أدخل بريدًا إلكترونيًا صحيحًا في خانة الإيميل" } };
+    }
     const meta = {
       full_name: fullName,
-      phone: phone || null,
+      phone: identity.phone,
       role: "captain",
       car_model: carModel || null,
       plate_number: plateNumber || null,
       ride_type: rideType || null,
     };
     const { data, error } = await supabase.auth.signUp({
-      email: normalizedEmail,
+      email: identity.email,
       password,
       options: { data: meta },
     });
@@ -73,13 +83,13 @@ export function AuthProvider({ children }) {
       await supabase.from("profiles").upsert({
         id: data.user.id,
         full_name: fullName,
-        phone: phone || null,
+        phone: identity.phone,
       });
       await supabase.from("drivers").upsert(
         {
           user_id: data.user.id,
           full_name: fullName,
-          phone: phone || null,
+          phone: identity.phone,
           car_model: carModel || null,
           plate_number: plateNumber || null,
           ride_type: rideType || null,
@@ -145,4 +155,35 @@ export function useAuth() {
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function looksLikeEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function normalizePhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return null;
+  return digits;
+}
+
+export function resolveEmailAndPhone(email, phone) {
+  const rawEmail = String(email || "").trim();
+  const rawPhone = String(phone || "").trim();
+  if (looksLikeEmail(rawPhone) && (normalizePhone(rawEmail) || !looksLikeEmail(rawEmail))) {
+    return {
+      email: normalizeEmail(rawPhone),
+      phone: normalizePhone(rawEmail),
+    };
+  }
+  if (looksLikeEmail(rawEmail)) {
+    return {
+      email: normalizeEmail(rawEmail),
+      phone: looksLikeEmail(rawPhone) ? null : normalizePhone(rawPhone),
+    };
+  }
+  if (looksLikeEmail(rawPhone)) {
+    return { email: normalizeEmail(rawPhone), phone: null };
+  }
+  return { email: "", phone: normalizePhone(rawPhone) };
 }

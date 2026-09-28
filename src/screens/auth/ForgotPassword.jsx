@@ -29,7 +29,11 @@ export default function ForgotPassword() {
       <form onSubmit={handleSubmit} className="px-6 mt-4 flex-1 flex flex-col gap-4">
         <TextField
           label="البريد الإلكتروني"
+          name="email"
           type="email"
+          inputMode="email"
+          autoComplete="email"
+          dir="ltr"
           placeholder="name@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}

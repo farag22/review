@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PrimaryButton, TextField } from "../../components/ui";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth, resolveEmailAndPhone } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 
 const FALLBACK_TYPES = [
@@ -50,8 +50,17 @@ export default function CaptainSignUp() {
       setError("كلمة السر يجب ألا تقل عن 6 أحرف");
       return;
     }
+    const identity = resolveEmailAndPhone(form.email, form.phone);
+    if (!identity.email) {
+      setError("أدخل بريدًا إلكترونيًا صحيحًا في خانة الإيميل");
+      return;
+    }
     setLoading(true);
-    const { data, error: signError } = await signUpCaptain(form);
+    const { data, error: signError } = await signUpCaptain({
+      ...form,
+      email: identity.email,
+      phone: identity.phone,
+    });
     setLoading(false);
     if (signError) {
       setError(signError.message || "حدث خطأ، حاول مرة أخرى");
@@ -73,6 +82,8 @@ export default function CaptainSignUp() {
       <form onSubmit={handleSubmit} className="mt-8 space-y-4 flex-1 flex flex-col">
         <TextField
           label="الاسم بالكامل"
+          name="fullName"
+          autoComplete="name"
           placeholder="اكتب اسمك"
           value={form.fullName}
           onChange={(e) => update("fullName", e.target.value)}
@@ -80,7 +91,11 @@ export default function CaptainSignUp() {
         />
         <TextField
           label="البريد الإلكتروني"
+          name="email"
           type="email"
+          inputMode="email"
+          autoComplete="email"
+          dir="ltr"
           placeholder="captain@example.com"
           value={form.email}
           onChange={(e) => update("email", e.target.value)}
@@ -88,7 +103,11 @@ export default function CaptainSignUp() {
         />
         <TextField
           label="رقم الهاتف"
+          name="phone"
           type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          dir="ltr"
           placeholder="01xxxxxxxxx"
           value={form.phone}
           onChange={(e) => update("phone", e.target.value)}
