@@ -7,7 +7,7 @@ import { ensureAdminProfile, isAdminUser } from "../../lib/admin";
 
 export default function AdminSignIn() {
   const navigate = useNavigate();
-  const { signInWithEmail } = useAuth();
+  const { signInWithEmail, refreshAccount } = useAuth();
   const [email, setEmail] = useState("Farag20014@gmail.com");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -43,6 +43,7 @@ export default function AdminSignIn() {
       setError("هذا الحساب ليس حساب إدارة. استخدم Farag20014@gmail.com");
       return;
     }
+    await refreshAccount(data?.session);
     navigate("/admin/dashboard");
   }
 

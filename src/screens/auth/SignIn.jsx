@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function SignIn() {
   const navigate = useNavigate();
-  const { signInWithEmail, signInWithOAuth } = useAuth();
+  const { signInWithEmail, signInWithOAuth, refreshAccount } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -15,13 +15,15 @@ export default function SignIn() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const { error } = await signInWithEmail(email, password);
-    setLoading(false);
+    const { data, error } = await signInWithEmail(email, password);
     if (error) {
+      setLoading(false);
       setError("البريد الإلكتروني أو كلمة السر غير صحيحة");
       return;
     }
-    navigate("/home");
+    const type = await refreshAccount(data?.session);
+    setLoading(false);
+    navigate(type === "admin" ? "/admin/dashboard" : type === "captain" ? "/captain/dashboard" : "/home");
   }
 
   async function handleOAuth(provider) {

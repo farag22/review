@@ -5,7 +5,7 @@ import { useAuth, resolveEmailAndPhone } from "../../context/AuthContext";
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const { signUpWithEmail } = useAuth();
+  const { signUpWithEmail, refreshAccount } = useAuth();
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -47,6 +47,7 @@ export default function SignUp() {
       setError("تم إنشاء الحساب. راجع بريدك لتأكيد الإيميل ثم سجّل الدخول");
       return;
     }
+    await refreshAccount(data.session);
     navigate("/home");
   }
 

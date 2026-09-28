@@ -15,7 +15,7 @@ const TYPE_LABELS = {
 
 export default function CaptainDashboard() {
   const navigate = useNavigate();
-  const { signOut, user } = useAuth();
+  const { user } = useAuth();
   const {
     driver,
     loading,
@@ -80,13 +80,10 @@ export default function CaptainDashboard() {
           </p>
         </div>
         <button
-          onClick={async () => {
-            await signOut();
-            navigate("/captain/signin");
-          }}
-          className="text-[12px] font-bold text-ink/45"
+          onClick={() => navigate("/captain/profile")}
+          className="w-11 h-11 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center"
         >
-          خروج
+          {name ? name[0] : "ك"}
         </button>
       </div>
 

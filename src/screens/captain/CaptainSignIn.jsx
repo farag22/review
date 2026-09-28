@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabase";
 
 export default function CaptainSignIn() {
   const navigate = useNavigate();
-  const { signInWithEmail } = useAuth();
+  const { signInWithEmail, refreshAccount } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -38,6 +38,7 @@ export default function CaptainSignIn() {
       setError("هذا الحساب ليس حساب كابتن. أنشئ حساب سائق أولاً");
       return;
     }
+    await refreshAccount(data?.session);
     navigate("/captain/dashboard");
   }
 

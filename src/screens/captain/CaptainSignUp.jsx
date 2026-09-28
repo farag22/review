@@ -14,7 +14,7 @@ const FALLBACK_TYPES = [
 
 export default function CaptainSignUp() {
   const navigate = useNavigate();
-  const { signUpCaptain } = useAuth();
+  const { signUpCaptain, refreshAccount } = useAuth();
   const [rideTypes, setRideTypes] = useState(FALLBACK_TYPES);
   const [form, setForm] = useState({
     fullName: "",
@@ -70,6 +70,7 @@ export default function CaptainSignUp() {
       setError("تم إنشاء الحساب. راجع بريدك لتأكيد الإيميل ثم سجّل الدخول");
       return;
     }
+    await refreshAccount(data.session);
     navigate("/captain/dashboard");
   }
 

@@ -1,25 +1,70 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { isAdminUser } from "../lib/admin";
+import { accountHomePath } from "../lib/session";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [driver, setDriver] = useState(null);
+  const [accountType, setAccountType] = useState("guest");
   const [loading, setLoading] = useState(true);
 
+  async function hydrateAccount(nextSession) {
+    const user = nextSession?.user || null;
+    if (!user?.id) {
+      setProfile(null);
+      setDriver(null);
+      setAccountType("guest");
+      return "guest";
+    }
+
+    const [{ data: profileRow }, { data: driverRow }] = await Promise.all([
+      supabase.from("profiles").select("id, full_name, phone, role, avatar_url").eq("id", user.id).maybeSingle(),
+      supabase.from("drivers").select("id, user_id, full_name, phone, car_model, plate_number, ride_type").eq("user_id", user.id).maybeSingle(),
+    ]);
+
+    const nextProfile = profileRow || {
+      id: user.id,
+      full_name: user.user_metadata?.full_name || "",
+      phone: user.user_metadata?.phone || "",
+      role: user.user_metadata?.role || "rider",
+    };
+    setProfile(nextProfile);
+    setDriver(driverRow || null);
+
+    let type = "rider";
+    if (isAdminUser(user, nextProfile?.role)) type = "admin";
+    else if (driverRow || nextProfile?.role === "captain" || user.user_metadata?.role === "captain") type = "captain";
+    setAccountType(type);
+    return type;
+  }
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    let cancelled = false;
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (cancelled) return;
       setSession(data.session);
-      setLoading(false);
+      await hydrateAccount(data.session);
+      if (!cancelled) setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
-        setSession(newSession);
-      }
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setTimeout(async () => {
+        if (cancelled) return;
+        await hydrateAccount(newSession);
+        if (!cancelled) setLoading(false);
+      }, 0);
+    });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   async function signInWithEmail(email, password) {
@@ -48,6 +93,7 @@ export function AuthProvider({ children }) {
         id: data.user.id,
         full_name: fullName,
         phone: identity.phone,
+        role: "rider",
       });
     }
     return { data, error };
@@ -84,6 +130,7 @@ export function AuthProvider({ children }) {
         id: data.user.id,
         full_name: fullName,
         phone: identity.phone,
+        role: "captain",
       });
       await supabase.from("drivers").upsert(
         {
@@ -120,7 +167,45 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
-    return supabase.auth.signOut();
+    await supabase.auth.signOut();
+    setSession(null);
+    setProfile(null);
+    setDriver(null);
+    setAccountType("guest");
+  }
+
+  async function updateProfile({ fullName, phone }) {
+    const user = session?.user;
+    if (!user?.id) throw new Error("سجّل الدخول أولاً");
+    const nextPhone = normalizePhone(phone) || String(phone || "").trim() || null;
+    const { data, error } = await supabase
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        full_name: fullName,
+        phone: nextPhone,
+        role: profile?.role || (accountType === "captain" ? "captain" : accountType === "admin" ? "admin" : "rider"),
+      })
+      .select("id, full_name, phone, role, avatar_url")
+      .single();
+    if (error) throw error;
+    await supabase.auth.updateUser({
+      data: { full_name: fullName, phone: nextPhone },
+    });
+    if (driver?.id) {
+      await supabase
+        .from("drivers")
+        .update({ full_name: fullName, phone: nextPhone })
+        .eq("id", driver.id);
+      setDriver((prev) => (prev ? { ...prev, full_name: fullName, phone: nextPhone } : prev));
+    }
+    setProfile(data);
+    return data;
+  }
+
+  async function refreshAccount(nextSession = session) {
+    if (nextSession) setSession(nextSession);
+    return hydrateAccount(nextSession);
   }
 
   async function signInWithOAuth(provider) {
@@ -133,6 +218,10 @@ export function AuthProvider({ children }) {
   const value = {
     session,
     user: session?.user ?? null,
+    profile,
+    driver,
+    accountType,
+    homePath: accountHomePath(accountType),
     loading,
     signInWithEmail,
     signUpWithEmail,
@@ -141,6 +230,8 @@ export function AuthProvider({ children }) {
     sendResetCode,
     verifyResetCode,
     updatePassword,
+    updateProfile,
+    refreshAccount,
     signOut,
   };
 

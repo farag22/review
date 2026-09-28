@@ -36,7 +36,7 @@ export default function Home() {
           {locationError && <p className="text-red-500 text-[11px] mt-1">{locationError}</p>}
         </div>
         <button
-          onClick={() => navigate("/wallet")}
+          onClick={() => navigate("/profile")}
           className="w-11 h-11 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center"
         >
           {name ? name[0] : "ر"}

@@ -32,7 +32,7 @@ const TABS = [
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -132,13 +132,10 @@ export default function AdminDashboard() {
           <p className="font-extrabold text-[18px]">{name}</p>
         </div>
         <button
-          onClick={async () => {
-            await signOut();
-            navigate("/admin/signin");
-          }}
-          className="text-[12px] font-bold text-ink/45"
+          onClick={() => navigate("/admin/profile")}
+          className="w-11 h-11 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center"
         >
-          خروج
+          {name ? name[0] : "م"}
         </button>
       </div>
 
