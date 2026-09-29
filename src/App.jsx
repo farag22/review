@@ -57,9 +57,11 @@ function RedirectIfAuthed({ children }) {
 }
 
 function RequireAuth({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, accountType } = useAuth();
   if (loading) return <AuthLoading />;
   if (!user) return <Navigate to="/signin" replace />;
+  if (accountType === "admin") return <Navigate to="/admin/dashboard" replace />;
+  if (accountType === "captain") return <Navigate to="/captain/dashboard" replace />;
   return children;
 }
 
@@ -68,6 +70,7 @@ function RequireCaptainAuth({ children }) {
   if (loading) return <AuthLoading />;
   if (!user) return <Navigate to="/captain/signin" replace />;
   if (accountType === "admin") return <Navigate to="/admin/dashboard" replace />;
+  if (accountType !== "captain") return <Navigate to="/home" replace />;
   return children;
 }
 

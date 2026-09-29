@@ -21,6 +21,7 @@ export function AuthProvider({ children }) {
       return "guest";
     }
 
+    const metaRole = String(user.user_metadata?.role || "").toLowerCase();
     const [{ data: profileRow }, { data: driverRow }] = await Promise.all([
       supabase.from("profiles").select("id, full_name, phone, role, avatar_url").eq("id", user.id).maybeSingle(),
       supabase.from("drivers").select("id, user_id, full_name, phone, car_model, plate_number, ride_type").eq("user_id", user.id).maybeSingle(),
@@ -30,14 +31,14 @@ export function AuthProvider({ children }) {
       id: user.id,
       full_name: user.user_metadata?.full_name || "",
       phone: user.user_metadata?.phone || "",
-      role: user.user_metadata?.role || "rider",
+      role: metaRole || "rider",
     };
     setProfile(nextProfile);
     setDriver(driverRow || null);
 
     let type = "rider";
-    if (isAdminUser(user, nextProfile?.role)) type = "admin";
-    else if (driverRow || nextProfile?.role === "captain" || user.user_metadata?.role === "captain") type = "captain";
+    if (isAdminUser(user, nextProfile?.role) || metaRole === "admin") type = "admin";
+    else if (driverRow || nextProfile?.role === "captain" || metaRole === "captain") type = "captain";
     setAccountType(type);
     return type;
   }
@@ -86,7 +87,7 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({
       email: identity.email,
       password,
-      options: { data: { full_name: fullName, phone: identity.phone } },
+      options: { data: { full_name: fullName, phone: identity.phone, role: "rider" } },
     });
     if (!error && data.user) {
       await supabase.from("profiles").upsert({

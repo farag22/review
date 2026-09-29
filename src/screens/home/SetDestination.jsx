@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ScreenHeader, PrimaryButton, Chip } from "../../components/ui";
 import { PinIcon, SearchIcon, ClockIcon, PlusIcon } from "../../components/Icons";
 import { useRide } from "../../context/RideContext";
-import { searchPlaces } from "../../lib/geo";
+import { LOCAL_PLACES, searchLocalPlaces, searchPlaces } from "../../lib/geo";
 
 export default function SetDestination() {
   const navigate = useNavigate();
@@ -11,43 +11,39 @@ export default function SetDestination() {
   const { pickup, destination, setDestination, stops, savedPlaces, savePlace } = useRide();
   const [query, setQuery] = useState(destination?.label || "");
   const [tab, setTab] = useState(location.state?.placeLabel || "fav");
-  const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [error, setError] = useState("");
+  const [results, setResults] = useState(LOCAL_PLACES.slice(0, 8));
 
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      return undefined;
-    }
+    setResults(q ? searchLocalPlaces(q) : LOCAL_PLACES.slice(0, 8));
+    if (q.length < 1) return undefined;
+    let cancelled = false;
     const t = setTimeout(async () => {
-      setSearching(true);
-      setError("");
       try {
         const rows = await searchPlaces(q, pickup);
-        let safeRows = Array.isArray(rows) ? rows : [];
-        
-        // إذا كانت النتائج فارغة، نقوم بعرض الكلمة المدخلة مباشرة كوجهة مقترحة
-        if (safeRows.length === 0) {
-          safeRows = [
-            { label: q, address: "منطقة رئيسية، مصر", lat: 30.14, lng: 31.35 }
-          ];
+        if (cancelled) return;
+        const safeRows = Array.isArray(rows) ? rows : [];
+        if (safeRows.length) {
+          setResults(safeRows);
+        } else {
+          setResults([
+            { label: q, address: "منطقة رئيسية، مصر", lat: pickup?.lat || 30.466, lng: pickup?.lng || 31.185 },
+          ]);
         }
-        
-        setResults(safeRows);
-        setError("");
-      } catch (err) {
-        console.warn("Search fallback used:", err);
-        setResults([
-          { label: q, address: "القليوبية / مصر", lat: 30.25, lng: 31.21 }
-        ]);
-        setError(""); 
-      } finally {
-        setSearching(false);
+      } catch {
+        if (cancelled) return;
+        const local = searchLocalPlaces(q);
+        setResults(
+          local.length
+            ? local
+            : [{ label: q, address: "القليوبية / مصر", lat: pickup?.lat || 30.466, lng: pickup?.lng || 31.185 }]
+        );
       }
-    }, 350);
-    return () => clearTimeout(t);
+    }, 220);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [query, pickup]);
 
   function pick(place) {
@@ -72,7 +68,7 @@ export default function SetDestination() {
       <div className="px-5 space-y-3">
         <div className="h-12 rounded-xl bg-white border border-black/10 px-3 flex items-center gap-2">
           <PinIcon size={14} color="#0b7350" />
-          <span className="text-[13px] text-ink/60 truncate">{pickup?.label || "الموقع الحالي"}</span>
+          <span className="text-[13px] text-ink/60 truncate">{pickup?.label || "بنها، القليوبية"}</span>
         </div>
         <div className="h-12 rounded-xl bg-brand-50 border border-brand-100 px-3 flex items-center gap-2">
           <SearchIcon size={16} />
@@ -93,7 +89,6 @@ export default function SetDestination() {
         >
           <PlusIcon size={16} /> إضافة توقف
         </button>
-        {error && <p className="text-red-500 text-[12px]">{error}</p>}
       </div>
 
       <div className="px-5 mt-5 flex gap-2">
@@ -103,7 +98,6 @@ export default function SetDestination() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 mt-4 space-y-1">
-        {searching && <p className="text-[12px] text-ink/45 py-2">جاري البحث...</p>}
         {results.map((p) => (
           <button
             key={`${p.lat}-${p.lng}-${p.label}`}
@@ -129,7 +123,7 @@ export default function SetDestination() {
             </button>
           </button>
         ))}
-        {!query && filteredSaved.map((p) => (
+        {!query.trim() && filteredSaved.map((p) => (
           <button
             key={p.id}
             onClick={() => pick({ label: p.name, address: p.address, lat: p.lat, lng: p.lng })}

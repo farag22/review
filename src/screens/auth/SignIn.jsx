@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PrimaryButton, GhostButton, TextField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
+import { accountHomePath } from "../../lib/session";
 
 export default function SignIn() {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ export default function SignIn() {
     }
     const type = await refreshAccount(data?.session);
     setLoading(false);
-    navigate(type === "admin" ? "/admin/dashboard" : type === "captain" ? "/captain/dashboard" : "/home");
+    navigate(accountHomePath(type));
   }
 
   async function handleOAuth(provider) {

@@ -31,9 +31,9 @@ export default function Home() {
           <p className="text-ink/50 text-[13px]">الموقع الحالي</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <PinIcon size={16} />
-            <p className="font-bold text-[15px]">{pickup?.label || "جاري التحديد..."}</p>
+            <p className="font-bold text-[15px]">{pickup?.label || "بنها، القليوبية"}</p>
           </div>
-          {locationError && <p className="text-red-500 text-[11px] mt-1">{locationError}</p>}
+          {locationError ? <p className="text-ink/40 text-[11px] mt-1">{locationError}</p> : null}
         </div>
         <button
           onClick={() => navigate("/profile")}

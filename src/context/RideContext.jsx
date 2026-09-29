@@ -1,7 +1,16 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { BANHA, calcFare, getFareProfile, getRoute, haversineKm, reverseGeocode, watchPosition } from "../lib/geo";
+import {
+  DEFAULT_LOCATION,
+  calcFare,
+  getCurrentPosition,
+  getFareProfile,
+  getRoute,
+  haversineKm,
+  reverseGeocode,
+  watchPosition,
+} from "../lib/geo";
 
 const RideContext = createContext(null);
 
@@ -15,7 +24,7 @@ const DEFAULT_TYPES = [
 
 export function RideProvider({ children }) {
   const { user } = useAuth();
-  const [pickup, setPickup] = useState({ label: "جاري تحديد موقعك...", address: "", lat: BANHA.lat, lng: BANHA.lng });
+  const [pickup, setPickup] = useState({ ...DEFAULT_LOCATION });
   const [destination, setDestination] = useState(null);
   const [stops, setStops] = useState([]);
   const [selectedRide, setSelectedRide] = useState(null);
@@ -35,39 +44,59 @@ export function RideProvider({ children }) {
   }, [activeRide]);
 
   useEffect(() => {
-    const stop = watchPosition(
-      async (coords) => {
-        setGpsReady(true);
+    let cancelled = false;
+
+    async function applyCoords(coords) {
+      if (cancelled || activeRideRef.current) return;
+      const isFallback = Boolean(coords?.fallback);
+      if (isFallback) {
+        setGpsReady(false);
         setLocationError("");
-        if (activeRideRef.current) return;
-        setPickup((prev) => {
-          if (prev?.manual) return { ...prev, accuracy: coords.accuracy };
-          return {
-            ...prev,
-            lat: coords.lat,
-            lng: coords.lng,
-            accuracy: coords.accuracy,
-            label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "موقعك الحالي",
-          };
-        });
-        const last = lastGeoRef.current;
-        const moved = !last.lat || haversineKm(last, coords) >= 0.08;
-        if (!moved && Date.now() - last.at < 45000) return;
-        lastGeoRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
-        try {
-          const place = await reverseGeocode(coords.lat, coords.lng);
-          setPickup((prev) => (prev?.manual ? prev : { ...place, accuracy: coords.accuracy }));
-        } catch {
-          setPickup((prev) =>
-            prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng }
-          );
-        }
-      },
-      () => {
-        setLocationError("فعّل إذن الموقع لتحديد نقطة الانطلاق بدقة");
+        setPickup((prev) => (prev?.manual ? prev : { ...DEFAULT_LOCATION }));
+        return;
       }
-    );
-    return stop;
+      setGpsReady(true);
+      setLocationError("");
+      setPickup((prev) => {
+        if (prev?.manual) return { ...prev, accuracy: coords.accuracy };
+        return {
+          ...prev,
+          lat: coords.lat,
+          lng: coords.lng,
+          accuracy: coords.accuracy,
+          label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "موقعك الحالي",
+        };
+      });
+      const last = lastGeoRef.current;
+      const moved = !last.lat || haversineKm(last, coords) >= 0.08;
+      if (!moved && Date.now() - last.at < 45000) return;
+      lastGeoRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
+      try {
+        const place = await reverseGeocode(coords.lat, coords.lng);
+        if (cancelled) return;
+        setPickup((prev) => {
+          const locked = prev?.manual;
+          if (locked) return { ...prev, accuracy: coords.accuracy };
+          return { ...place, accuracy: coords.accuracy };
+        });
+      } catch {
+        if (cancelled) return;
+        setPickup((prev) =>
+          prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng }
+        );
+      }
+    }
+
+    getCurrentPosition({ timeout: 6000 }).then(applyCoords);
+
+    const stop = watchPosition(applyCoords, () => {
+      setLocationError("");
+      setPickup((prev) => (prev?.manual || prev?.lat ? prev : { ...DEFAULT_LOCATION }));
+    });
+    return () => {
+      cancelled = true;
+      stop();
+    };
   }, []);
 
   useEffect(() => {

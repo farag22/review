@@ -32,14 +32,20 @@ drop trigger if exists trg_assign_driver on public.rides;
 
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  v_role text := coalesce(nullif(new.raw_user_meta_data ->> 'role', ''), 'rider');
 begin
-  insert into public.profiles (id, full_name, phone)
+  insert into public.profiles (id, full_name, phone, role)
   values (
     new.id,
     new.raw_user_meta_data ->> 'full_name',
-    nullif(new.raw_user_meta_data ->> 'phone', '')
+    nullif(new.raw_user_meta_data ->> 'phone', ''),
+    v_role
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update
+    set full_name = coalesce(excluded.full_name, public.profiles.full_name),
+        phone = coalesce(excluded.phone, public.profiles.phone),
+        role = coalesce(excluded.role, public.profiles.role);
 
   insert into public.wallets (user_id, balance)
   values (new.id, 0)
@@ -49,7 +55,7 @@ begin
   values (new.id, 'cash', 'نقدًا', true)
   on conflict do nothing;
 
-  if (new.raw_user_meta_data ->> 'role') = 'captain' then
+  if v_role = 'captain' then
     insert into public.drivers (user_id, full_name, phone, car_model, plate_number, ride_type)
     values (
       new.id,
@@ -78,68 +84,79 @@ drop policy if exists "captains delete self" on public.drivers;
 create policy "captains delete self" on public.drivers
   for delete using (auth.uid() = user_id);
 
+create or replace function public.current_driver_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select d.id from public.drivers d where d.user_id = auth.uid() limit 1;
+$$;
+
+create or replace function public.is_online_captain_for(p_ride_type text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.drivers d
+    where d.user_id = auth.uid()
+      and d.is_online is true
+      and (d.ride_type is null or p_ride_type is null or d.ride_type = p_ride_type)
+  );
+$$;
+
+create or replace function public.captain_assigned_to_ride(p_ride_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.rides r
+    where r.id = p_ride_id and r.driver_id = public.current_driver_id()
+  );
+$$;
+
 drop policy if exists "captains read matching rides" on public.rides;
-create policy "captains read matching rides" on public.rides
+drop policy if exists "captains read assigned rides" on public.rides;
+create policy "captains read assigned rides" on public.rides
+  for select using (driver_id is not null and driver_id = public.current_driver_id());
+
+drop policy if exists "captains read requested rides" on public.rides;
+create policy "captains read requested rides" on public.rides
   for select using (
-    exists (
-      select 1 from public.drivers d
-      where d.user_id = auth.uid()
-        and (
-          d.id = rides.driver_id
-          or (
-            rides.status = 'requested'
-            and rides.driver_id is null
-            and d.is_online is true
-            and (d.ride_type = rides.ride_type or d.ride_type is null)
-          )
-        )
-    )
+    status = 'requested'
+    and driver_id is null
+    and public.is_online_captain_for(ride_type)
   );
 
 drop policy if exists "captains accept and update rides" on public.rides;
-create policy "captains accept and update rides" on public.rides
-  for update using (
-    exists (
-      select 1 from public.drivers d
-      where d.user_id = auth.uid()
-        and (
-          d.id = rides.driver_id
-          or (
-            rides.status = 'requested'
-            and rides.driver_id is null
-            and d.is_online is true
-            and (d.ride_type = rides.ride_type or d.ride_type is null)
-          )
-        )
-    )
+drop policy if exists "captains update assigned rides" on public.rides;
+create policy "captains update assigned rides" on public.rides
+  for update
+  using (driver_id = public.current_driver_id())
+  with check (driver_id = public.current_driver_id());
+
+drop policy if exists "captains accept requested rides" on public.rides;
+create policy "captains accept requested rides" on public.rides
+  for update
+  using (
+    status = 'requested'
+    and driver_id is null
+    and public.is_online_captain_for(ride_type)
   )
-  with check (
-    exists (
-      select 1 from public.drivers d
-      where d.user_id = auth.uid()
-        and d.id = rides.driver_id
-    )
-  );
+  with check (driver_id = public.current_driver_id());
 
 drop policy if exists "captains read ride stops" on public.ride_stops;
-create policy "captains read ride stops" on public.ride_stops
-  for select using (
-    exists (
-      select 1 from public.rides r
-      join public.drivers d on d.id = r.driver_id
-      where r.id = ride_stops.ride_id and d.user_id = auth.uid()
-    )
-  );
 
 drop policy if exists "captains read assigned rider profiles" on public.profiles;
 create policy "captains read assigned rider profiles" on public.profiles
-  for select using (
-    exists (
-      select 1 from public.rides r
-      join public.drivers d on d.id = r.driver_id
-      where r.rider_id = profiles.id and d.user_id = auth.uid()
-    )
-  );
+  for select using (id = auth.uid() or public.current_driver_id() is not null);
 
 create index if not exists rides_requested_type_idx
   on public.rides (ride_type, requested_at desc)

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ScreenHeader, PrimaryButton } from "../../components/ui";
 import { PlusIcon, PinIcon } from "../../components/Icons";
 import { useRide } from "../../context/RideContext";
-import { searchPlaces } from "../../lib/geo";
+import { searchLocalPlaces, searchPlaces } from "../../lib/geo";
 
 const DURATIONS = [
   { label: "5 د", minutes: 5 },
@@ -20,18 +20,24 @@ export default function AddStops() {
 
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
+    if (q.length < 1) {
       setResults([]);
       return undefined;
     }
+    setResults(searchLocalPlaces(q));
+    let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        setResults(await searchPlaces(q, pickup));
+        const rows = await searchPlaces(q, pickup);
+        if (!cancelled && rows?.length) setResults(rows);
       } catch {
-        setResults([]);
+        if (!cancelled) setResults(searchLocalPlaces(q));
       }
-    }, 350);
-    return () => clearTimeout(t);
+    }, 220);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [query, pickup]);
 
   function addStop(place) {

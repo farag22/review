@@ -3,6 +3,39 @@ const PHOTON = "https://photon.komoot.io";
 const OSRM = "https://router.project-osrm.org";
 
 export const BANHA = { lat: 30.466, lng: 31.185 };
+export const BELBEIS = { lat: 30.4203, lng: 31.562 };
+export const CAIRO = { lat: 30.0444, lng: 31.2357 };
+export const DEFAULT_LOCATION = {
+  lat: BANHA.lat,
+  lng: BANHA.lng,
+  label: "بنها، القليوبية",
+  address: "بنها، محافظة القليوبية، مصر",
+  fallback: true,
+};
+
+export const LOCAL_PLACES = [
+  { label: "بنها", address: "بنها، القليوبية", lat: 30.466, lng: 31.185 },
+  { label: "محطة بنها", address: "محطة السكة الحديد، بنها", lat: 30.4588, lng: 31.1786 },
+  { label: "جامعة بنها", address: "جامعة بنها، القليوبية", lat: 30.457, lng: 31.184 },
+  { label: "قها", address: "قها، القليوبية", lat: 30.283, lng: 31.204 },
+  { label: "قليوب", address: "قليوب، القليوبية", lat: 30.179, lng: 31.205 },
+  { label: "شبرا الخيمة", address: "شبرا الخيمة، القليوبية", lat: 30.1286, lng: 31.2422 },
+  { label: "الخانكة", address: "الخانكة، القليوبية", lat: 30.2105, lng: 31.3684 },
+  { label: "طوخ", address: "طوخ، القليوبية", lat: 30.353, lng: 31.201 },
+  { label: "كفر شكر", address: "كفر شكر، القليوبية", lat: 30.547, lng: 31.267 },
+  { label: "بلبيس", address: "بلبيس، الشرقية", lat: 30.4203, lng: 31.562 },
+  { label: "شارع بورسعيد، بلبيس", address: "شارع بورسعيد، بلبيس، الشرقية", lat: 30.418, lng: 31.559 },
+  { label: "محطة بلبيس", address: "محطة السكة الحديد، بلبيس", lat: 30.4225, lng: 31.5638 },
+  { label: "سوق بلبيس", address: "السوق، بلبيس، الشرقية", lat: 30.4192, lng: 31.5604 },
+  { label: "المرج", address: "المرج، القاهرة", lat: 30.152, lng: 31.336 },
+  { label: "مترو المرج", address: "محطة مترو المرج، القاهرة", lat: 30.1528, lng: 31.3355 },
+  { label: "المرج الجديدة", address: "المرج الجديدة، القاهرة", lat: 30.163, lng: 31.348 },
+  { label: "عين شمس", address: "عين شمس، القاهرة", lat: 30.131, lng: 31.327 },
+  { label: "مدينة نصر", address: "مدينة نصر، القاهرة", lat: 30.0626, lng: 31.3219 },
+  { label: "وسط البلد", address: "وسط القاهرة", lat: 30.0444, lng: 31.2357 },
+  { label: "العباسية", address: "العباسية، القاهرة", lat: 30.065, lng: 31.277 },
+  { label: "مصر الجديدة", address: "مصر الجديدة، القاهرة", lat: 30.087, lng: 31.324 },
+];
 
 export function haversineKm(a, b) {
   if (!a || !b || a.lat == null || b.lat == null) return 0;
@@ -32,7 +65,7 @@ export function formatEgp(amount) {
 }
 
 function jsonHeaders() {
-  return { Accept: "application/json" };
+  return { Accept: "application/json", "Accept-Language": "ar" };
 }
 
 async function fetchJson(url, ms = 8000) {
@@ -48,8 +81,13 @@ async function fetchJson(url, ms = 8000) {
 }
 
 function photonLabel(props = {}) {
-  const parts = [props.name, props.street, props.district || props.suburb, props.city || props.town || props.village || props.county, props.state]
-    .filter(Boolean);
+  const parts = [
+    props.name,
+    props.street,
+    props.district || props.suburb,
+    props.city || props.town || props.village || props.county,
+    props.state,
+  ].filter(Boolean);
   return [...new Set(parts)].slice(0, 3).join("، ") || props.country || "موقع";
 }
 
@@ -64,9 +102,22 @@ function photonPlace(feature) {
   };
 }
 
+function nearestLocalPlace(lat, lng) {
+  let best = LOCAL_PLACES[0];
+  let bestKm = Number.POSITIVE_INFINITY;
+  LOCAL_PLACES.forEach((place) => {
+    const km = haversineKm({ lat, lng }, place);
+    if (km < bestKm) {
+      best = place;
+      bestKm = km;
+    }
+  });
+  return best;
+}
+
 export async function reverseGeocode(lat, lng) {
   try {
-    const data = await fetchJson(`${PHOTON}/reverse?lat=${lat}&lon=${lng}&lang=ar`);
+    const data = await fetchJson(`${PHOTON}/reverse?lat=${lat}&lon=${lng}&lang=ar`, 4500);
     const place = photonPlace(data?.features?.[0]);
     if (place?.lat) return { ...place, lat, lng };
   } catch {
@@ -74,7 +125,8 @@ export async function reverseGeocode(lat, lng) {
   }
   try {
     const data = await fetchJson(
-      `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=jsonv2&accept-language=ar`
+      `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=jsonv2&accept-language=ar`,
+      4500
     );
     return {
       lat,
@@ -83,15 +135,48 @@ export async function reverseGeocode(lat, lng) {
       address: data.display_name || "",
     };
   } catch {
-    return { lat, lng, label: "موقعك الحالي", address: "" };
+    const near = nearestLocalPlace(lat, lng);
+    return {
+      lat,
+      lng,
+      label: near.label,
+      address: near.address,
+      fallback: true,
+    };
   }
 }
 
 function shortenAddress(data) {
   const a = data.address || {};
-  const parts = [a.road, a.suburb || a.neighbourhood, a.city || a.town || a.village || a.state]
-    .filter(Boolean);
+  const parts = [a.road, a.suburb || a.neighbourhood, a.city || a.town || a.village || a.state].filter(Boolean);
   return parts.slice(0, 3).join("، ") || data.display_name || "الموقع الحالي";
+}
+
+function normalizeSearch(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي");
+}
+
+export function searchLocalPlaces(query, limit = 8) {
+  const q = normalizeSearch(query);
+  if (!q) return LOCAL_PLACES.slice(0, limit);
+  const scored = LOCAL_PLACES.map((place) => {
+    const hay = normalizeSearch(`${place.label} ${place.address}`);
+    let score = -1;
+    if (hay === q) score = 100;
+    else if (hay.startsWith(q)) score = 80;
+    else if (hay.includes(q)) score = 60;
+    return { place, score };
+  })
+    .filter((row) => row.score >= 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((row) => row.place);
+  return scored;
 }
 
 async function searchPhoton(q, { lat, lng } = {}) {
@@ -100,7 +185,7 @@ async function searchPhoton(q, { lat, lng } = {}) {
     params.set("lat", String(lat));
     params.set("lon", String(lng));
   }
-  const data = await fetchJson(`${PHOTON}/api/?${params}`);
+  const data = await fetchJson(`${PHOTON}/api/?${params}`, 4500);
   return (data?.features || [])
     .map(photonPlace)
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
@@ -119,7 +204,7 @@ async function searchNominatim(q, { lat, lng } = {}) {
     params.set("viewbox", `${lng - 0.35},${lat + 0.35},${lng + 0.35},${lat - 0.35}`);
     params.set("bounded", "0");
   }
-  const rows = await fetchJson(`${NOMINATIM}/search?${params}`);
+  const rows = await fetchJson(`${NOMINATIM}/search?${params}`, 4500);
   return (rows || []).map((row) => ({
     lat: Number(row.lat),
     lng: Number(row.lon),
@@ -128,19 +213,35 @@ async function searchNominatim(q, { lat, lng } = {}) {
   }));
 }
 
+function mergePlaces(local, remote) {
+  const seen = new Set(local.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`));
+  const merged = [...local];
+  remote.forEach((place) => {
+    if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return;
+    const key = `${place.lat.toFixed(4)},${place.lng.toFixed(4)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(place);
+    }
+  });
+  return merged.slice(0, 10);
+}
+
 export async function searchPlaces(query, { lat, lng } = {}) {
   const q = String(query || "").trim();
-  if (q.length < 2) return [];
+  if (q.length < 1) return LOCAL_PLACES.slice(0, 8);
+  const local = searchLocalPlaces(q);
   try {
     const photon = await searchPhoton(q, { lat, lng });
-    if (photon.length) return photon;
+    if (photon.length) return mergePlaces(local, photon);
   } catch {
     /* fallback */
   }
   try {
-    return await searchNominatim(q, { lat, lng });
+    const nominatim = await searchNominatim(q, { lat, lng });
+    return mergePlaces(local, nominatim);
   } catch {
-    return [];
+    return local.length ? local : LOCAL_PLACES.slice(0, 8);
   }
 }
 
@@ -149,16 +250,18 @@ export async function getRoute(from, to, extras = []) {
   if (points.length < 2) return null;
   const coords = points.map((p) => `${p.lng},${p.lat}`).join(";");
   const url = `${OSRM}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
-  const res = await fetch(url);
-  if (!res.ok) return fallbackRoute(points);
-  const data = await res.json();
-  const route = data.routes?.[0];
-  if (!route) return fallbackRoute(points);
-  return {
-    distanceKm: route.distance / 1000,
-    durationMin: Math.max(1, Math.round(route.duration / 60)),
-    path: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
-  };
+  try {
+    const data = await fetchJson(url, 6000);
+    const route = data.routes?.[0];
+    if (!route) return fallbackRoute(points);
+    return {
+      distanceKm: route.distance / 1000,
+      durationMin: Math.max(1, Math.round(route.duration / 60)),
+      path: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+    };
+  } catch {
+    return fallbackRoute(points);
+  }
 }
 
 function fallbackRoute(points) {
@@ -173,8 +276,42 @@ function fallbackRoute(points) {
   };
 }
 
+export function getCurrentPosition({ timeout = 6000, maximumAge = 60000 } = {}) {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ ...DEFAULT_LOCATION, accuracy: null });
+      return;
+    }
+    let settled = false;
+    const finish = (coords) => {
+      if (settled) return;
+      settled = true;
+      resolve(coords);
+    };
+    const timer = setTimeout(() => {
+      finish({ ...DEFAULT_LOCATION, accuracy: null });
+    }, timeout + 400);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearTimeout(timer);
+        finish({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      () => {
+        clearTimeout(timer);
+        finish({ ...DEFAULT_LOCATION, accuracy: null });
+      },
+      { enableHighAccuracy: true, timeout, maximumAge }
+    );
+  });
+}
+
 export function watchPosition(onOk, onErr) {
   if (!navigator.geolocation) {
+    onOk?.({ ...DEFAULT_LOCATION, accuracy: null });
     onErr?.(new Error("المتصفح لا يدعم تحديد الموقع"));
     return () => {};
   }
@@ -186,8 +323,11 @@ export function watchPosition(onOk, onErr) {
         accuracy: pos.coords.accuracy,
       });
     },
-    onErr,
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 8000 }
+    (err) => {
+      onOk?.({ ...DEFAULT_LOCATION, accuracy: null });
+      onErr?.(err);
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
   );
   return () => navigator.geolocation.clearWatch(id);
 }
