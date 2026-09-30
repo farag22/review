@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ScreenHeader, PrimaryButton, TextField } from "../../components/ui";
 import { WalletIcon, PlusIcon } from "../../components/Icons";
 import { useAuth } from "../../context/AuthContext";
@@ -13,25 +13,45 @@ const TYPE_META = {
   bank: { label: "تحويل بنكي", sub: "تحويل للحساب" },
 };
 
+const VODAFONE_CASH = "01003454288";
+
+const REQUEST_STATUS = {
+  pending: { label: "قيد المراجعة", className: "bg-amber-50 text-amber-700" },
+  approved: { label: "تمت الموافقة", className: "bg-brand-50 text-brand-700" },
+  rejected: { label: "مرفوض", className: "bg-red-50 text-red-600" },
+};
+
 export default function Wallet() {
   const { user } = useAuth();
   const { paymentMethod, setPaymentMethod } = useRide();
   const [balance, setBalance] = useState(0);
   const [methods, setMethods] = useState([]);
   const [amount, setAmount] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [requests, setRequests] = useState([]);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState("card");
   const [newLabel, setNewLabel] = useState("");
+  const fileRef = useRef(null);
 
   async function loadWallet() {
     if (!user) return;
-    const [{ data: wallet }, { data: pm }] = await Promise.all([
+    const [{ data: wallet }, { data: pm }, { data: reqs }] = await Promise.all([
       supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle(),
       supabase.from("payment_methods").select("*").eq("user_id", user.id).order("created_at"),
+      supabase
+        .from("wallet_requests")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(8),
     ]);
     setBalance(Number(wallet?.balance) || 0);
+    setRequests(reqs || []);
     if (pm?.length) {
       setMethods(pm);
       const def = pm.find((m) => m.is_default);
@@ -52,31 +72,51 @@ export default function Wallet() {
     await supabase.from("payment_methods").update({ is_default: true }).eq("id", method.id);
   }
 
-  async function topUp() {
+  async function uploadReceipt() {
+    if (!receiptFile || !user?.id) return null;
+    const ext = String(receiptFile.name || "jpg").split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${user.id}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("wallet-receipts").upload(path, receiptFile, {
+      upsert: false,
+      contentType: receiptFile.type || "image/jpeg",
+    });
+    if (upErr) throw upErr;
+    const { data } = supabase.storage.from("wallet-receipts").getPublicUrl(path);
+    return data?.publicUrl || null;
+  }
+
+  async function submitTopUp() {
     const value = Number(amount);
     if (!user || !Number.isFinite(value) || value <= 0) {
       setError("أدخل مبلغًا صحيحًا");
       return;
     }
+    const phone = String(phoneNumber || "").replace(/\D/g, "");
+    if (phone.length < 10) {
+      setError("أدخل رقم التحويل المستخدم في فودافون كاش");
+      return;
+    }
     setError("");
+    setSuccess("");
     setLoading(true);
     try {
-      const next = Number((balance + value).toFixed(2));
-      const { error: werr } = await supabase
-        .from("wallets")
-        .upsert({ user_id: user.id, balance: next, updated_at: new Date().toISOString() });
-      if (werr) throw werr;
-      await supabase.from("wallet_txns").insert({
+      const receiptUrl = await uploadReceipt();
+      const { error: reqErr } = await supabase.from("wallet_requests").insert({
         user_id: user.id,
         amount: value,
-        kind: "topup",
-        note: "شحن محفظة",
+        phone_number: phone,
+        receipt_image_url: receiptUrl,
+        status: "pending",
       });
-      setBalance(next);
+      if (reqErr) throw reqErr;
       setAmount("");
-      setPaymentMethod("wallet");
+      setPhoneNumber("");
+      setReceiptFile(null);
+      if (fileRef.current) fileRef.current.value = "";
+      setSuccess("طلبك قيد المراجعة من الإدارة وسيتم إضافة الرصيد فور التحقق");
+      await loadWallet();
     } catch (err) {
-      setError(err.message || "تعذر الشحن");
+      setError(err.message || "تعذر إرسال طلب الشحن");
     } finally {
       setLoading(false);
     }
@@ -107,6 +147,11 @@ export default function Wallet() {
     }
   }
 
+  function copyCashNumber() {
+    navigator.clipboard?.writeText(VODAFONE_CASH).catch(() => {});
+    setSuccess("تم نسخ رقم فودافون كاش");
+  }
+
   return (
     <div className="flex-1 flex flex-col">
       <ScreenHeader title="المحفظة" />
@@ -120,25 +165,71 @@ export default function Wallet() {
           <p className="text-3xl font-extrabold mt-2">
             {formatEgp(balance).replace(" ج.م", "")} <span className="text-base font-semibold">ج.م</span>
           </p>
-          <div className="mt-4 flex gap-2">
-            <input
-              type="number"
-              min="1"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="المبلغ"
-              className="flex-1 h-10 rounded-full px-4 text-ink text-[13px]"
-            />
-            <button
-              onClick={topUp}
-              disabled={loading}
-              className="bg-white text-brand-700 text-[13px] font-bold px-4 py-2 rounded-full"
-            >
-              {loading ? "..." : "شحن"}
-            </button>
-          </div>
+          <p className="text-white/80 text-[12px] mt-3">حوّل فودافون كاش إلى</p>
+          <button
+            type="button"
+            onClick={copyCashNumber}
+            className="mt-1 text-[15px] font-extrabold tracking-wide"
+            dir="ltr"
+          >
+            {VODAFONE_CASH}
+          </button>
+          <p className="text-white/70 text-[11px] mt-1">اضغط لنسخ الرقم ثم أرسل إيصال التحويل للمراجعة</p>
         </div>
       </div>
+
+      <div className="px-5 mt-5 space-y-3">
+        <p className="text-[13px] font-bold text-ink/60">طلب شحن المحفظة</p>
+        <input
+          type="number"
+          min="1"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="المبلغ"
+          className="w-full h-12 rounded-xl bg-white border border-black/10 px-4 text-[14px]"
+        />
+        <TextField
+          placeholder="رقم التحويل من فودافون كاش"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          dir="ltr"
+          inputMode="tel"
+        />
+        <label className="block">
+          <span className="block text-[12px] text-ink/50 mb-1.5">صورة إيصال التحويل (اختياري)</span>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+            className="w-full text-[12px] file:mr-3 file:h-9 file:px-3 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700 file:font-bold"
+          />
+        </label>
+        <PrimaryButton onClick={submitTopUp} disabled={loading}>
+          {loading ? "جاري إرسال الطلب..." : "إرسال طلب الشحن"}
+        </PrimaryButton>
+      </div>
+
+      {success && <p className="px-5 text-brand-700 text-[13px] mt-3">{success}</p>}
+      {error && <p className="px-5 text-red-500 text-[13px] mt-3">{error}</p>}
+
+      {requests.length > 0 && (
+        <div className="px-5 mt-6 space-y-2">
+          <p className="text-[13px] font-bold text-ink/60">طلبات الشحن</p>
+          {requests.map((req) => {
+            const meta = REQUEST_STATUS[req.status] || REQUEST_STATUS.pending;
+            return (
+              <div key={req.id} className="rounded-2xl bg-white border border-black/5 p-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-bold text-[13px]">{formatEgp(req.amount)}</p>
+                  <p className="text-[11px] text-ink/45 mt-0.5" dir="ltr">{req.phone_number || "—"}</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${meta.className}`}>{meta.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="px-5 mt-6">
         <p className="text-[13px] font-bold text-ink/60 mb-3">طرق الدفع</p>
@@ -187,8 +278,6 @@ export default function Wallet() {
           onChange={(e) => setNewLabel(e.target.value)}
         />
       </div>
-
-      {error && <p className="px-5 text-red-500 text-[13px] mt-3">{error}</p>}
 
       <div className="flex-1" />
       <div className="px-5 py-5">

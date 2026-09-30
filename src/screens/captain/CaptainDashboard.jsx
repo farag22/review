@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView from "../../components/MapView";
+import { PrimaryButton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCaptain } from "../../context/CaptainContext";
 import { formatDistance, formatEgp, haversineKm } from "../../lib/geo";
@@ -29,6 +30,24 @@ export default function CaptainDashboard() {
   } = useCaptain();
   const [busyId, setBusyId] = useState(null);
   const [localError, setLocalError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+  const signingOutRef = useRef(false);
+
+  async function handleForceSignOut() {
+    if (signingOutRef.current) return;
+    signingOutRef.current = true;
+    setSigningOut(true);
+    await signOut();
+    navigate("/captain/signin", { replace: true });
+  }
+
+  useEffect(() => {
+    if (loading || driver) return undefined;
+    const t = setTimeout(() => {
+      handleForceSignOut();
+    }, 600);
+    return () => clearTimeout(t);
+  }, [loading, driver]);
 
   if (loading) {
     return (
@@ -40,23 +59,14 @@ export default function CaptainDashboard() {
 
   if (!driver) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
         <p className="font-bold">لم يتم ربط هذا الحساب بجدول السائقين</p>
-        <button
-          onClick={() => navigate("/captain/signup")}
-          className="text-brand-600 font-bold text-[14px]"
-        >
-          تسجيل كابتن جديد
-        </button>
-        <button
-          onClick={async () => {
-            await signOut();
-            navigate("/captain/signin", { replace: true });
-          }}
-          className="mt-3 bg-red-600 text-white font-bold text-[14px] px-5 py-2.5 rounded-xl shadow"
-        >
-          تسجيل الخروج وإعادة المحاولة
-        </button>
+        <p className="text-[13px] text-ink/50">
+          الحساب غير موجود أو تم حذفه. سيتم تسجيل خروجك تلقائيًا.
+        </p>
+        <PrimaryButton onClick={handleForceSignOut} disabled={signingOut}>
+          {signingOut ? "جاري الخروج..." : "تسجيل الخروج وإعادة المحاولة"}
+        </PrimaryButton>
       </div>
     );
   }

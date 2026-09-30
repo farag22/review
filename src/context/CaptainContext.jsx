@@ -39,8 +39,8 @@ export function CaptainProvider({ children }) {
     }
 
     let cancelled = false;
-    async function loadDriver() {
-      setLoading(true);
+    async function loadDriver(initial = false) {
+      if (initial) setLoading(true);
       const { data, error: loadError } = await supabase
         .from("drivers")
         .select("*")
@@ -52,12 +52,23 @@ export function CaptainProvider({ children }) {
       if (data?.lat != null && data?.lng != null) {
         setLocation({ lat: data.lat, lng: data.lng });
       }
-      setLoading(false);
+      if (initial) setLoading(false);
     }
 
-    loadDriver();
+    loadDriver(true);
+    const poll = setInterval(() => loadDriver(false), 8000);
+    const channel = supabase
+      .channel(`captain-driver-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "drivers", filter: `user_id=eq.${user.id}` },
+        () => loadDriver(false)
+      )
+      .subscribe();
     return () => {
       cancelled = true;
+      clearInterval(poll);
+      supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

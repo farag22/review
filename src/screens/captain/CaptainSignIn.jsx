@@ -7,7 +7,7 @@ import { supabase } from "../../lib/supabase";
 export default function CaptainSignIn() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithEmail, refreshAccount } = useAuth();
+  const { signInWithEmail, refreshAccount, signOut } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -38,7 +38,8 @@ export default function CaptainSignIn() {
       .maybeSingle();
     setLoading(false);
     if (!driver) {
-      setError("هذا الحساب ليس حساب كابتن. أنشئ حساب سائق أولاً");
+      await signOut();
+      setError("هذا الحساب ليس حساب كابتن أو تم حذفه. أنشئ حساب سائق أولاً");
       return;
     }
     await refreshAccount(data?.session);

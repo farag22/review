@@ -42,6 +42,19 @@ create table if not exists public.wallet_txns (
   created_at timestamptz default now()
 );
 
+create table if not exists public.wallet_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  amount numeric(10,2) not null check (amount > 0),
+  phone_number text,
+  receipt_image_url text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  admin_note text,
+  reviewed_by uuid references public.profiles(id),
+  reviewed_at timestamptz,
+  created_at timestamptz default now()
+);
+
 create table if not exists public.payment_methods (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.profiles(id) on delete cascade,
@@ -202,6 +215,7 @@ alter table public.profiles enable row level security;
 alter table public.saved_places enable row level security;
 alter table public.wallets enable row level security;
 alter table public.wallet_txns enable row level security;
+alter table public.wallet_requests enable row level security;
 alter table public.payment_methods enable row level security;
 alter table public.rides enable row level security;
 alter table public.ride_stops enable row level security;
@@ -224,15 +238,23 @@ drop policy if exists "read own wallet" on public.wallets;
 create policy "read own wallet" on public.wallets
   for select using (auth.uid() = user_id);
 drop policy if exists "update own wallet" on public.wallets;
-create policy "update own wallet" on public.wallets
-  for update using (auth.uid() = user_id);
 drop policy if exists "insert own wallet" on public.wallets;
 create policy "insert own wallet" on public.wallets
-  for insert with check (auth.uid() = user_id);
+  for insert with check (auth.uid() = user_id and balance = 0);
 
 drop policy if exists "manage own wallet txns" on public.wallet_txns;
 create policy "manage own wallet txns" on public.wallet_txns
-  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  for select using (auth.uid() = user_id);
+drop policy if exists "insert own wallet txns" on public.wallet_txns;
+create policy "insert own wallet txns" on public.wallet_txns
+  for insert with check (auth.uid() = user_id and kind <> 'topup');
+
+drop policy if exists "riders insert own wallet requests" on public.wallet_requests;
+create policy "riders insert own wallet requests" on public.wallet_requests
+  for insert with check (auth.uid() = user_id and status = 'pending');
+drop policy if exists "riders read own wallet requests" on public.wallet_requests;
+create policy "riders read own wallet requests" on public.wallet_requests
+  for select using (auth.uid() = user_id);
 
 drop policy if exists "manage own payment methods" on public.payment_methods;
 create policy "manage own payment methods" on public.payment_methods
@@ -396,6 +418,77 @@ create policy "admins read ride stops" on public.ride_stops
 drop policy if exists "admins read wallets" on public.wallets;
 create policy "admins read wallets" on public.wallets
   for select using (public.is_admin());
+drop policy if exists "admins update wallets" on public.wallets;
+create policy "admins update wallets" on public.wallets
+  for update using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "admins insert wallets" on public.wallets;
+create policy "admins insert wallets" on public.wallets
+  for insert with check (public.is_admin());
+drop policy if exists "admins insert wallet txns" on public.wallet_txns;
+create policy "admins insert wallet txns" on public.wallet_txns
+  for insert with check (public.is_admin());
+drop policy if exists "admins manage wallet requests" on public.wallet_requests;
+create policy "admins manage wallet requests" on public.wallet_requests
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create or replace function public.review_wallet_request(p_request_id uuid, p_approve boolean, p_note text default null)
+returns public.wallet_requests
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  req public.wallet_requests;
+begin
+  if not public.is_admin() then
+    raise exception 'غير مصرح: حساب الإدارة فقط';
+  end if;
+
+  select * into req
+  from public.wallet_requests
+  where id = p_request_id
+  for update;
+
+  if not found then
+    raise exception 'طلب الشحن غير موجود';
+  end if;
+
+  if req.status <> 'pending' then
+    raise exception 'تمت مراجعة هذا الطلب مسبقاً';
+  end if;
+
+  if p_approve then
+    insert into public.wallets (user_id, balance, updated_at)
+    values (req.user_id, req.amount, now())
+    on conflict (user_id) do update
+      set balance = public.wallets.balance + excluded.balance,
+          updated_at = now();
+
+    insert into public.wallet_txns (user_id, amount, kind, note)
+    values (req.user_id, req.amount, 'topup', coalesce(p_note, 'شحن بعد موافقة الإدارة'));
+
+    update public.wallet_requests
+    set status = 'approved',
+        admin_note = p_note,
+        reviewed_by = auth.uid(),
+        reviewed_at = now()
+    where id = p_request_id
+    returning * into req;
+  else
+    update public.wallet_requests
+    set status = 'rejected',
+        admin_note = p_note,
+        reviewed_by = auth.uid(),
+        reviewed_at = now()
+    where id = p_request_id
+    returning * into req;
+  end if;
+
+  return req;
+end;
+$$;
+
+grant execute on function public.review_wallet_request(uuid, boolean, text) to authenticated;
 
 alter table public.ride_types enable row level security;
 drop policy if exists "read ride types" on public.ride_types;

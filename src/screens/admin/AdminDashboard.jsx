@@ -25,10 +25,17 @@ const STATUS_LABELS = {
 
 const TABS = [
   { id: "overview", label: "نظرة عامة" },
+  { id: "topups", label: "طلبات الشحن" },
   { id: "drivers", label: "السائقون" },
   { id: "rides", label: "الرحلات" },
   { id: "riders", label: "الركاب" },
 ];
+
+const TOPUP_STATUS = {
+  pending: "معلق",
+  approved: "موافق",
+  rejected: "مرفوض",
+};
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -39,23 +46,36 @@ export default function AdminDashboard() {
   const [drivers, setDrivers] = useState([]);
   const [rides, setRides] = useState([]);
   const [riders, setRiders] = useState([]);
+  const [topups, setTopups] = useState([]);
   const [busyId, setBusyId] = useState(null);
 
   async function load() {
     setError("");
     setLoading(true);
-    const [{ data: driverRows, error: dErr }, { data: rideRows, error: rErr }, { data: riderRows, error: pErr }] =
-      await Promise.all([
-        supabase.from("drivers").select("*").order("created_at", { ascending: false }),
-        supabase.from("rides").select("*").order("requested_at", { ascending: false }).limit(80),
-        supabase.from("profiles").select("id, full_name, phone, role, created_at").order("created_at", { ascending: false }).limit(80),
-      ]);
-    if (dErr || rErr || pErr) {
-      setError(dErr?.message || rErr?.message || pErr?.message || "تعذر تحميل بيانات الإدارة. شغّل supabase/admin.sql");
+    const [
+      { data: driverRows, error: dErr },
+      { data: rideRows, error: rErr },
+      { data: riderRows, error: pErr },
+      { data: topupRows, error: tErr },
+    ] = await Promise.all([
+      supabase.from("drivers").select("*").order("created_at", { ascending: false }),
+      supabase.from("rides").select("*").order("requested_at", { ascending: false }).limit(80),
+      supabase.from("profiles").select("id, full_name, phone, role, created_at").order("created_at", { ascending: false }).limit(80),
+      supabase.from("wallet_requests").select("*").order("created_at", { ascending: false }).limit(80),
+    ]);
+    if (dErr || rErr || pErr || tErr) {
+      setError(
+        dErr?.message ||
+          rErr?.message ||
+          pErr?.message ||
+          tErr?.message ||
+          "تعذر تحميل بيانات الإدارة. شغّل supabase/admin.sql ثم supabase/wallet-requests.sql"
+      );
     }
     setDrivers(driverRows || []);
     setRides(rideRows || []);
     setRiders(riderRows || []);
+    setTopups(topupRows || []);
     setLoading(false);
   }
 
@@ -93,9 +113,31 @@ export default function AdminDashboard() {
       today: todayRides.length,
       active: rides.filter((r) => ["accepted", "arrived", "in_progress"].includes(r.status)).length,
       pending: rides.filter((r) => r.status === "requested").length,
+      topups: topups.filter((t) => t.status === "pending").length,
       revenue,
     };
-  }, [drivers, rides, riders]);
+  }, [drivers, rides, riders, topups]);
+
+  function riderName(userId) {
+    const row = riders.find((p) => p.id === userId);
+    return row?.full_name || row?.phone || "راكب";
+  }
+
+  async function reviewTopup(request, approve) {
+    setBusyId(request.id);
+    const { data, error: err } = await supabase.rpc("review_wallet_request", {
+      p_request_id: request.id,
+      p_approve: approve,
+      p_note: approve ? "تمت الموافقة وإضافة الرصيد" : "رفض طلب الشحن",
+    });
+    setBusyId(null);
+    if (err) {
+      setError(err.message || "تعذر مراجعة طلب الشحن. شغّل supabase/wallet-requests.sql");
+      return;
+    }
+    const updated = Array.isArray(data) ? data[0] : data;
+    setTopups((list) => list.map((row) => (row.id === request.id ? { ...row, ...updated } : row)));
+  }
 
   async function toggleDriver(driver) {
     setBusyId(driver.id);
@@ -164,10 +206,68 @@ export default function AdminDashboard() {
           <Stat label="رحلات اليوم" value={stats.today} />
           <Stat label="رحلات نشطة" value={stats.active} />
           <Stat label="طلبات معلّقة" value={stats.pending} />
+          <Stat label="شحن معلّق" value={stats.topups} />
           <div className="col-span-2 rounded-2xl bg-brand-600 text-white p-4">
             <p className="text-[12px] text-white/80">إيراد الرحلات المكتملة</p>
             <p className="text-[22px] font-extrabold mt-1">{formatEgp(stats.revenue)}</p>
           </div>
+        </div>
+      )}
+
+      {!loading && tab === "topups" && (
+        <div className="px-5 mt-4 space-y-3 pb-6">
+          {topups.length === 0 && <Empty text="لا توجد طلبات شحن بعد" />}
+          {topups.map((req) => (
+            <div key={req.id} className="rounded-2xl bg-white shadow-card p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-[14px]">{riderName(req.user_id)}</p>
+                  <p className="text-[12px] text-ink/50 mt-0.5" dir="ltr">{req.phone_number || "بدون رقم تحويل"}</p>
+                </div>
+                <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${
+                  req.status === "pending"
+                    ? "bg-amber-50 text-amber-700"
+                    : req.status === "approved"
+                      ? "bg-brand-50 text-brand-700"
+                      : "bg-red-50 text-red-600"
+                }`}>
+                  {TOPUP_STATUS[req.status] || req.status}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-ink/50">المبلغ</span>
+                <span className="font-extrabold">{formatEgp(req.amount)}</span>
+              </div>
+              {req.receipt_image_url && (
+                <a
+                  href={req.receipt_image_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-xl overflow-hidden border border-black/5"
+                >
+                  <img src={req.receipt_image_url} alt="إيصال التحويل" className="w-full h-36 object-cover" />
+                </a>
+              )}
+              {req.status === "pending" && (
+                <div className="flex gap-2">
+                  <button
+                    disabled={busyId === req.id}
+                    onClick={() => reviewTopup(req, true)}
+                    className="flex-1 h-11 rounded-xl bg-emerald-600 text-white text-[13px] font-bold disabled:opacity-40"
+                  >
+                    {busyId === req.id ? "..." : "موافق"}
+                  </button>
+                  <button
+                    disabled={busyId === req.id}
+                    onClick={() => reviewTopup(req, false)}
+                    className="flex-1 h-11 rounded-xl border border-red-200 text-red-500 text-[13px] font-bold disabled:opacity-40"
+                  >
+                    رفض
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

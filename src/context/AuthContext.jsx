@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { isAdminUser } from "../lib/admin";
-import { accountHomePath } from "../lib/session";
+import { accountHomePath, clearAuthStorage } from "../lib/session";
 
 const AuthContext = createContext(null);
 
@@ -24,16 +24,29 @@ export function AuthProvider({ children }) {
     const metaRole = String(user.user_metadata?.role || "").toLowerCase();
     let profileRow = null;
     let driverRow = null;
+    let profileError = null;
+    let driverError = null;
     try {
-      const [{ data: nextProfileRow }, { data: nextDriverRow }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, phone, role, avatar_url").eq("id", user.id).maybeSingle(),
-        supabase.from("drivers").select("id, user_id, full_name, phone, car_model, plate_number, ride_type").eq("user_id", user.id).maybeSingle(),
-      ]);
+      const [{ data: nextProfileRow, error: nextProfileError }, { data: nextDriverRow, error: nextDriverError }] =
+        await Promise.all([
+          supabase.from("profiles").select("id, full_name, phone, role, avatar_url").eq("id", user.id).maybeSingle(),
+          supabase.from("drivers").select("id, user_id, full_name, phone, car_model, plate_number, ride_type").eq("user_id", user.id).maybeSingle(),
+        ]);
       profileRow = nextProfileRow;
       driverRow = nextDriverRow;
+      profileError = nextProfileError;
+      driverError = nextDriverError;
     } catch {
       profileRow = null;
       driverRow = null;
+    }
+
+    const authGone = [profileError?.message, driverError?.message].some((msg) =>
+      /jwt|session|not authenticated|invalid/i.test(String(msg || ""))
+    );
+    if (authGone) {
+      await signOut();
+      return "guest";
     }
 
     const nextProfile = profileRow || {
@@ -228,13 +241,17 @@ export function AuthProvider({ children }) {
     try {
       await supabase.auth.signOut();
     } catch {
-      await supabase.auth.signOut({ scope: "local" });
-    } finally {
-      setSession(null);
-      setProfile(null);
-      setDriver(null);
-      setAccountType("guest");
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        /* ignore */
+      }
     }
+    clearAuthStorage();
+    setSession(null);
+    setProfile(null);
+    setDriver(null);
+    setAccountType("guest");
   }
 
   async function updateProfile({ fullName, phone }) {

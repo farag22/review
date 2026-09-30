@@ -42,6 +42,22 @@ drop policy if exists "admins read wallets" on public.wallets;
 create policy "admins read wallets" on public.wallets
   for select using (public.is_admin());
 
+drop policy if exists "admins update wallets" on public.wallets;
+create policy "admins update wallets" on public.wallets
+  for update using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "admins insert wallets" on public.wallets;
+create policy "admins insert wallets" on public.wallets
+  for insert with check (public.is_admin());
+
+drop policy if exists "admins insert wallet txns" on public.wallet_txns;
+create policy "admins insert wallet txns" on public.wallet_txns
+  for insert with check (public.is_admin());
+
+drop policy if exists "admins manage wallet requests" on public.wallet_requests;
+create policy "admins manage wallet requests" on public.wallet_requests
+  for all using (public.is_admin()) with check (public.is_admin());
+
 -- عيّن حساب أدمن (بدّل الإيميل). ينشئ صف profiles إن لم يوجد:
 -- insert into public.profiles (id, full_name, role)
 -- select id, coalesce(raw_user_meta_data->>'full_name', split_part(email, '@', 1)), 'admin'
