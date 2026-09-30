@@ -3,9 +3,20 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDistance } from "../lib/geo";
 
-// استخدام خريطة OpenStreetMap النظيفة والمجانية تماماً لضمان عدم ظهور أي قيود أو مفاتيح
-const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const TILE_LAYERS = [
+  {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attr: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  },
+  {
+    url: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+    attr: "&copy; OpenStreetMap",
+  },
+  {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    attr: "&copy; OpenStreetMap &copy; CARTO",
+  },
+];
 
 function pointKey(point) {
   if (!point || point.lat == null || point.lng == null) return "";
@@ -98,6 +109,8 @@ export default function MapView({
   follow = false,
   fill = false,
   fitPadding,
+  locate = false,
+  onLocate,
   children,
   interactive = true,
   onMapClick,
@@ -157,16 +170,21 @@ export default function MapView({
       touchZoom: interactive,
       boxZoom: interactive,
       keyboard: interactive,
-    }).setView([center.lat, center.lng], 16);
-    
-    L.tileLayer(TILES, { 
-      attribution: ATTR, 
-      maxZoom: 20, 
-      detectRetina: true 
+    }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
+    const first = TILE_LAYERS[0];
+    const tiles = L.tileLayer(first.url, {
+      attribution: first.attr,
+      maxZoom: 20,
+      detectRetina: true,
     }).addTo(map);
-
+    let tileIndex = 0;
+    tiles.on("tileerror", () => {
+      if (tileIndex >= TILE_LAYERS.length - 1) return;
+      tileIndex += 1;
+      const next = TILE_LAYERS[tileIndex];
+      L.tileLayer(next.url, { attribution: next.attr, maxZoom: 19 }).addTo(map);
+    });
     if (interactive) L.control.zoom({ position: "topleft" }).addTo(map);
-    
     layersRef.current.markers = L.layerGroup().addTo(map);
     layersRef.current.pins = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -316,13 +334,13 @@ export default function MapView({
     });
 
     const pad = fitPadding || { padding: [48, 48] };
-    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${requestsKey}|${JSON.stringify(pad)}`;
+    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${userKey}|${requestsKey}|${JSON.stringify(pad)}`;
     if (fitKey !== lastFitRef.current) {
       lastFitRef.current = fitKey;
       const bounds = [];
       if (pickup?.lat != null) bounds.push([pickup.lat, pickup.lng]);
       if (destination?.lat != null) bounds.push([destination.lat, destination.lng]);
-      if (path?.length > 1) path.forEach((p) => bounds.push(p));
+      if (path?.length > 1) path.forEach((p) => bounds.push(Array.isArray(p) ? p : [p.lat, p.lng]));
       (ridePins || []).forEach((p) => {
         if (p.lat != null) bounds.push([p.lat, p.lng]);
       });
@@ -333,11 +351,13 @@ export default function MapView({
       } else if (bounds.length === 1) {
         map.setView(bounds[0], 16, { animate: false });
       }
-      map.invalidateSize({ animate: false });
+      setTimeout(() => map.invalidateSize({ animate: false }), 50);
     } else if (followRef.current && driver?.lat != null) {
       map.panTo([driver.lat, driver.lng], { animate: true, duration: 0.35 });
     } else if (followRef.current && gpsPoint) {
       map.panTo([gpsPoint.lat, gpsPoint.lng], { animate: true, duration: 0.35 });
+    } else if (userLocation?.lat != null && !destination?.lat && !pickup?.lat) {
+      map.setView([userLocation.lat, userLocation.lng], map.getZoom() || 16, { animate: true });
     }
   }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy]);
 
@@ -361,6 +381,19 @@ export default function MapView({
           {formatDistance(routeInfo.distanceKm)}
           {routeInfo.durationMin != null ? ` · ${routeInfo.durationMin} د` : ""}
         </div>
+      ) : null}
+      {locate ? (
+        <button
+          type="button"
+          onClick={onLocate}
+          className="absolute z-20 bottom-3 left-3 w-11 h-11 rounded-full bg-white shadow-card border border-black/10 flex items-center justify-center"
+          aria-label="موقعي الحالي"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="3" stroke="#0b7350" strokeWidth="2" />
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="#0b7350" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
       ) : null}
       {showRecenter ? (
         <button

@@ -276,62 +276,91 @@ function fallbackRoute(points) {
   };
 }
 
-export function getCurrentPosition({ timeout = 6000, maximumAge = 60000 } = {}) {
-  return new Promise((resolve) => {
+export function geoErrorMessage(err) {
+  const code = err?.code;
+  if (code === 1) return "إذن الموقع مرفوض. فعّله من إعدادات المتصفح";
+  if (code === 2) return "تعذر قراءة الموقع حالياً";
+  if (code === 3) return "انتهت مهلة تحديد الموقع";
+  if (typeof navigator === "undefined" || !navigator.geolocation) return "المتصفح لا يدعم تحديد الموقع";
+  if (typeof window !== "undefined" && !window.isSecureContext) return "تحديد الموقع يتطلب HTTPS";
+  return err?.message || "تعذر تحديد الموقع";
+}
+
+function readCoords(pos) {
+  const lat = Number(pos?.coords?.latitude);
+  const lng = Number(pos?.coords?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw Object.assign(new Error("إحداثيات غير صالحة"), { code: 2 });
+  }
+  return {
+    lat,
+    lng,
+    accuracy: pos.coords.accuracy,
+    heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
+  };
+}
+
+function getOnce(options) {
+  return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      resolve({ ...DEFAULT_LOCATION, accuracy: null });
+      reject(Object.assign(new Error("المتصفح لا يدعم تحديد الموقع"), { code: 2 }));
       return;
     }
-    let settled = false;
-    const finish = (coords) => {
-      if (settled) return;
-      settled = true;
-      resolve(coords);
-    };
-    const timer = setTimeout(() => {
-      finish({ ...DEFAULT_LOCATION, accuracy: null });
-    }, timeout + 400);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        clearTimeout(timer);
-        finish({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
-        });
-      },
-      () => {
-        clearTimeout(timer);
-        finish({ ...DEFAULT_LOCATION, accuracy: null });
-      },
-      { enableHighAccuracy: true, timeout, maximumAge }
-    );
+    navigator.geolocation.getCurrentPosition((pos) => resolve(readCoords(pos)), reject, options);
   });
+}
+
+export async function getCurrentCoords() {
+  try {
+    return await getOnce({ enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 });
+  } catch (err) {
+    if (err?.code === 1) throw err;
+    return getOnce({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }
+}
+
+export function getCurrentPosition(options = {}) {
+  return getCurrentCoords().catch(() =>
+    getOnce({ enableHighAccuracy: true, timeout: options.timeout || 20000, maximumAge: 0 })
+  );
 }
 
 export function watchPosition(onOk, onErr) {
   if (!navigator.geolocation) {
-    onOk?.({ ...DEFAULT_LOCATION, accuracy: null });
-    onErr?.(new Error("المتصفح لا يدعم تحديد الموقع"));
+    onErr?.(Object.assign(new Error("المتصفح لا يدعم تحديد الموقع"), { code: 2 }));
     return () => {};
   }
-  const id = navigator.geolocation.watchPosition(
-    (pos) => {
-      onOk({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-        heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
-      });
-    },
-    (err) => {
-      onOk?.({ ...DEFAULT_LOCATION, accuracy: null });
-      onErr?.(err);
-    },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
-  );
-  return () => navigator.geolocation.clearWatch(id);
+  let cancelled = false;
+  let watchId = null;
+
+  getCurrentCoords()
+    .then((coords) => {
+      if (!cancelled) onOk(coords);
+    })
+    .catch((err) => {
+      if (!cancelled) onErr?.(err);
+    })
+    .finally(() => {
+      if (cancelled) return;
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          try {
+            onOk(readCoords(pos));
+          } catch {
+            /* ignore bad sample */
+          }
+        },
+        (err) => {
+          if (err?.code === 1) onErr?.(err);
+        },
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+      );
+    });
+
+  return () => {
+    cancelled = true;
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  };
 }
 
 export const FARE_PROFILES = {

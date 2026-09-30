@@ -2,9 +2,9 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import {
-  DEFAULT_LOCATION,
   calcFare,
-  getCurrentPosition,
+  geoErrorMessage,
+  getCurrentCoords,
   getFareProfile,
   getRoute,
   haversineKm,
@@ -24,7 +24,7 @@ const DEFAULT_TYPES = [
 
 export function RideProvider({ children }) {
   const { user } = useAuth();
-  const [pickup, setPickup] = useState({ ...DEFAULT_LOCATION });
+  const [pickup, setPickup] = useState(null);
   const [destination, setDestination] = useState(null);
   const [stops, setStops] = useState([]);
   const [selectedRide, setSelectedRide] = useState(null);
@@ -43,65 +43,56 @@ export function RideProvider({ children }) {
     activeRideRef.current = activeRide;
   }, [activeRide]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function applyCoords(coords) {
-      if (cancelled || activeRideRef.current) return;
-      const isFallback = Boolean(coords?.fallback);
-      if (isFallback) {
-        setGpsReady(false);
-        setLocationError("");
-        setPickup((prev) => (prev?.manual || (prev?.lat && !prev.fallback) ? prev : { ...DEFAULT_LOCATION }));
-        return;
-      }
-      setGpsReady(true);
-      setLocationError("");
-      
-      // تحديث الموقع الحالي بناءً على إحداثيات الـ GPS بحرية تامة دون فرض أسماء
-      setPickup((prev) => {
-        if (prev?.manual) return { ...prev, accuracy: coords.accuracy, heading: coords.heading };
-        return {
-          ...prev,
-          lat: coords.lat,
-          lng: coords.lng,
-          accuracy: coords.accuracy,
-          heading: coords.heading,
-          label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "الموقع الحالي",
-        };
-      });
-
-      const last = lastGeoRef.current;
-      const moved = !last.lat || haversineKm(last, coords) >= 0.08;
-      if (!moved && Date.now() - last.at < 45000) return;
-      lastGeoRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
-      
-      try {
-        const place = await reverseGeocode(coords.lat, coords.lng);
-        if (cancelled) return;
-        setPickup((prev) => {
-          const locked = prev?.manual;
-          if (locked) return { ...prev, accuracy: coords.accuracy };
-          return { ...place, accuracy: coords.accuracy };
-        });
-      } catch {
-        if (cancelled) return;
-        setPickup((prev) =>
-          prev?.manual ? prev : { label: "الموقع الحالي", address: "", lat: coords.lat, lng: coords.lng }
-        );
-      }
-    }
-
-    getCurrentPosition({ timeout: 6000 }).then(applyCoords);
-
-    const stop = watchPosition(applyCoords, () => {
-      setLocationError("");
-      setPickup((prev) => (prev?.manual || prev?.lat ? prev : { ...DEFAULT_LOCATION }));
+  async function applyGps(coords, { geocode = true } = {}) {
+    if (!coords?.lat || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) return;
+    setGpsReady(true);
+    setLocationError("");
+    if (activeRideRef.current) return;
+    setPickup((prev) => {
+      if (prev?.manual) return { ...prev, accuracy: coords.accuracy };
+      return {
+        ...prev,
+        lat: coords.lat,
+        lng: coords.lng,
+        accuracy: coords.accuracy,
+        label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "موقعك الحالي",
+      };
     });
-    return () => {
-      cancelled = true;
-      stop();
-    };
+    if (!geocode) return;
+    const last = lastGeoRef.current;
+    const moved = !last.lat || haversineKm(last, coords) >= 0.05;
+    if (!moved && Date.now() - last.at < 30000) return;
+    lastGeoRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
+    try {
+      const place = await reverseGeocode(coords.lat, coords.lng);
+      setPickup((prev) => (prev?.manual ? prev : { ...place, accuracy: coords.accuracy }));
+    } catch {
+      setPickup((prev) =>
+        prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng }
+      );
+    }
+  }
+
+  async function refreshLocation() {
+    setLocationError("");
+    try {
+      const coords = await getCurrentCoords();
+      await applyGps(coords, { geocode: true });
+    } catch (err) {
+      setGpsReady(false);
+      setLocationError(geoErrorMessage(err));
+    }
+  }
+
+  useEffect(() => {
+    const stop = watchPosition(
+      (coords) => applyGps(coords, { geocode: true }),
+      (err) => {
+        setGpsReady(false);
+        setLocationError(geoErrorMessage(err));
+      }
+    );
+    return stop;
   }, []);
 
   useEffect(() => {
@@ -293,6 +284,7 @@ export function RideProvider({ children }) {
     savedPlaces,
     locationError,
     gpsReady,
+    refreshLocation,
     requestRide,
     updateRideStatus,
     cancelRide,

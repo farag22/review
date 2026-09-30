@@ -14,7 +14,7 @@ const SERVICES = [
 export default function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { pickup, locationError, savedPlaces, rideOptions, setSelectedRide } = useRide();
+  const { pickup, locationError, refreshLocation, savedPlaces, rideOptions, setSelectedRide } = useRide();
   const name = user?.user_metadata?.full_name?.split(" ")[0] || "";
   const home = savedPlaces.find((p) => p.label === "home");
   const work = savedPlaces.find((p) => p.label === "work");
@@ -30,13 +30,17 @@ export default function Home() {
       <div className="px-5 pt-5 flex items-center justify-between">
         <div>
           <p className="text-ink/50 text-[13px]">الموقع الحالي</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <button type="button" onClick={refreshLocation} className="flex items-center gap-1.5 mt-0.5">
             <PinIcon size={16} />
             <p className="font-bold text-[15px]">
               {pickup?.label || (pickup?.lat ? `${pickup.lat.toFixed(4)}, ${pickup.lng.toFixed(4)}` : "جاري تحديد موقعك...")}
             </p>
-          </div>
-          {locationError ? <p className="text-ink/40 text-[11px] mt-1">{locationError}</p> : null}
+          </button>
+          {locationError ? (
+            <button type="button" onClick={refreshLocation} className="text-red-500 text-[11px] mt-1 text-right">
+              {locationError} · موقعي الحالي
+            </button>
+          ) : null}
         </div>
         <button
           onClick={() => navigate("/profile")}
@@ -53,6 +57,8 @@ export default function Home() {
           showAccuracy
           showRecenter
           follow
+          locate
+          onLocate={refreshLocation}
         />
       </div>
 

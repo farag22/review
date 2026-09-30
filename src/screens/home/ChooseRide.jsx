@@ -23,6 +23,7 @@ export default function ChooseRide() {
     route,
     paymentMethod,
     setPaymentMethod,
+    refreshLocation,
   } = useRide();
 
   useEffect(() => {
@@ -44,8 +45,11 @@ export default function ChooseRide() {
           pickup={pickup}
           destination={destination}
           path={route?.path}
+          userLocation={pickup}
           routeInfo={route}
           showRecenter
+          locate
+          onLocate={refreshLocation}
           fitPadding={{ paddingTopLeft: [36, 92], paddingBottomRight: [36, 390] }}
         />
       </div>

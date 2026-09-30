@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { BANHA, calcFare, getRoute, haversineKm, watchPosition } from "../lib/geo";
+import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, watchPosition } from "../lib/geo";
 
 const CaptainContext = createContext(null);
 
@@ -11,7 +11,7 @@ export function CaptainProvider({ children }) {
   const { user } = useAuth();
   const [driver, setDriver] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [location, setLocation] = useState(BANHA);
+  const [location, setLocation] = useState(null);
   const [pendingRides, setPendingRides] = useState([]);
   const [activeRide, setActiveRide] = useState(null);
   const [route, setRoute] = useState(null);
@@ -61,9 +61,27 @@ export function CaptainProvider({ children }) {
     };
   }, [user?.id]);
 
+  async function refreshLocation() {
+    try {
+      const coords = await getCurrentCoords();
+      setLocation(coords);
+      lastGpsRef.current = coords;
+      if (driverRef.current?.id) {
+        await supabase
+          .from("drivers")
+          .update({ lat: coords.lat, lng: coords.lng })
+          .eq("id", driverRef.current.id);
+        setDriver((prevDriver) =>
+          prevDriver ? { ...prevDriver, lat: coords.lat, lng: coords.lng } : prevDriver
+        );
+      }
+    } catch (err) {
+      setError(geoErrorMessage(err));
+    }
+  }
+
   useEffect(() => {
     if (!driver?.id) return undefined;
-    if (!driver.is_online && !activeRide) return undefined;
     const stop = watchPosition(
       async (coords) => {
         const prev = lastGpsRef.current;
@@ -83,6 +101,7 @@ export function CaptainProvider({ children }) {
         const moved = !prev || haversineKm(prev, coords) >= 0.02;
         if (!moved) return;
         lastGpsRef.current = next;
+        if (!driverRef.current?.is_online && !activeRide) return;
         await supabase
           .from("drivers")
           .update({ lat: coords.lat, lng: coords.lng })
@@ -91,10 +110,10 @@ export function CaptainProvider({ children }) {
           prevDriver ? { ...prevDriver, lat: coords.lat, lng: coords.lng } : prevDriver
         );
       },
-      () => setError("فعّل إذن الموقع لتحديث موقعك على الخريطة")
+      (err) => setError(geoErrorMessage(err))
     );
     return stop;
-  }, [driver?.id, driver?.is_online, activeRide?.id]);
+  }, [driver?.id, activeRide?.id]);
 
   async function refreshPendingAndActive() {
     const current = driverRef.current;
@@ -297,6 +316,7 @@ export function CaptainProvider({ children }) {
     rideTypes,
     error,
     setError,
+    refreshLocation,
     toggleOnline,
     acceptRide,
     updateActiveStatus,

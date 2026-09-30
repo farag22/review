@@ -14,7 +14,7 @@ const STEPS = [
 
 export default function CaptainActiveRide() {
   const navigate = useNavigate();
-  const { driver, location, activeRide, route, riderProfile, updateActiveStatus } = useCaptain();
+  const { driver, location, activeRide, route, riderProfile, updateActiveStatus, refreshLocation } = useCaptain();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(null);
@@ -102,6 +102,8 @@ export default function CaptainActiveRide() {
           routeInfo={route}
           showRecenter
           showAccuracy
+          locate
+          onLocate={refreshLocation}
         />
       </div>
 

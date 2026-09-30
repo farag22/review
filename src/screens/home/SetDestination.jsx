@@ -9,7 +9,7 @@ import { LOCAL_PLACES, formatDistance, reverseGeocode, searchLocalPlaces, search
 export default function SetDestination() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { pickup, setPickup, destination, setDestination, stops, savedPlaces, savePlace, route } = useRide();
+  const { pickup, setPickup, destination, setDestination, stops, savedPlaces, savePlace, route, locationError, refreshLocation } = useRide();
   const [query, setQuery] = useState(destination?.label || "");
   const [tab, setTab] = useState(location.state?.placeLabel || "fav");
   const [results, setResults] = useState(LOCAL_PLACES.slice(0, 8));
@@ -100,6 +100,8 @@ export default function SetDestination() {
           path={route?.path}
           showAccuracy
           showRecenter
+          locate
+          onLocate={refreshLocation}
           interactive
           routeInfo={route}
           onMapClick={(pt) => applyMapPoint(pt, mode)}
@@ -130,10 +132,18 @@ export default function SetDestination() {
       </div>
 
       <div className="px-5 mt-3 space-y-3">
-        <div className="h-12 rounded-xl bg-white border border-black/10 px-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={refreshLocation}
+          className="w-full h-12 rounded-xl bg-white border border-black/10 px-3 flex items-center gap-2"
+        >
           <PinIcon size={14} color="#0b7350" />
-          <span className="text-[13px] text-ink/60 truncate">{pickup?.label || "بنها، القليوبية"}</span>
-        </div>
+          <span className="text-[13px] text-ink/60 truncate flex-1 text-right">
+            {pickup?.label || "الموقع الحالي"}
+          </span>
+          <span className="text-[11px] font-bold text-brand-600 shrink-0">موقعي الحالي</span>
+        </button>
+        {locationError ? <p className="text-red-500 text-[12px]">{locationError}</p> : null}
         <div className="h-12 rounded-xl bg-brand-50 border border-brand-100 px-3 flex items-center gap-2">
           <SearchIcon size={16} />
           <input

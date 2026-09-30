@@ -25,6 +25,7 @@ export default function CaptainDashboard() {
     error,
     toggleOnline,
     acceptRide,
+    refreshLocation,
   } = useCaptain();
   const [busyId, setBusyId] = useState(null);
   const [localError, setLocalError] = useState("");
@@ -128,6 +129,8 @@ export default function CaptainDashboard() {
           follow={online}
           showAccuracy
           showRecenter
+          locate
+          onLocate={refreshLocation}
           ridePins={pendingRides.map((ride) => ({
             id: ride.id,
             lat: ride.pickup_lat,
