@@ -128,6 +128,7 @@ export default function MapView({
   const destDragRef = useRef(onDestinationDrag);
   const pinClickRef = useRef(onRidePinClick);
   const pointsRef = useRef({ pickup, destination, driver, path, userLocation, ridePins });
+  
   followRef.current = follow;
   clickRef.current = onMapClick;
   pickupDragRef.current = onPickupDrag;
@@ -156,8 +157,10 @@ export default function MapView({
       boxZoom: interactive,
       keyboard: interactive,
     }).setView([center.lat, center.lng], 15);
+    
     L.tileLayer(TILES, { attribution: ATTR, maxZoom: 20, subdomains: "abcd" }).addTo(map);
     if (interactive) L.control.zoom({ position: "topleft" }).addTo(map);
+    
     layersRef.current.markers = L.layerGroup().addTo(map);
     layersRef.current.pins = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -167,16 +170,25 @@ export default function MapView({
       clickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
     });
 
-    const resize = () => map.invalidateSize({ animate: false });
+    const resize = () => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize({ animate: false });
+      }
+    };
+    
     const ro = new ResizeObserver(resize);
     ro.observe(wrapRef.current);
     window.addEventListener("resize", resize);
-    const t1 = setTimeout(resize, 80);
-    const t2 = setTimeout(resize, 400);
+    
+    // تأكيد تحديث المقاسات عدة مرات لضمان عدم ظهور الشاشة البيضاء
+    const t1 = setTimeout(resize, 100);
+    const t2 = setTimeout(resize, 300);
+    const t3 = setTimeout(resize, 600);
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
       window.removeEventListener("resize", resize);
       ro.disconnect();
       map.remove();
@@ -346,7 +358,7 @@ export default function MapView({
       className={`relative w-full overflow-hidden bg-[#d7e4dc] ${fill ? "h-full min-h-[46vh] rounded-none" : "rounded-2xl"}`}
       style={{ height: fill ? "100%" : cssHeight, minHeight: fill ? "46vh" : undefined, direction: "ltr" }}
     >
-      <div ref={wrapRef} className="absolute inset-0 z-0" />
+      <div ref={wrapRef} className="absolute inset-0 z-0 w-full h-full" />
       {routeInfo?.distanceKm != null ? (
         <div className="sd-map-chip absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           {formatDistance(routeInfo.distanceKm)}
