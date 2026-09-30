@@ -3,8 +3,9 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDistance } from "../lib/geo";
 
-const TILES = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-const ATTR = "&copy; OpenStreetMap &copy; CARTO";
+// تم استبدال رابط الخرائط برابط OpenStreetMap النظيف والخالي تماماً من طلب المفاتيح
+const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 function pointKey(point) {
   if (!point || point.lat == null || point.lng == null) return "";
@@ -158,7 +159,7 @@ export default function MapView({
       keyboard: interactive,
     }).setView([center.lat, center.lng], 15);
     
-    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 20, subdomains: "abcd" }).addTo(map);
+    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19 }).addTo(map);
     if (interactive) L.control.zoom({ position: "topleft" }).addTo(map);
     
     layersRef.current.markers = L.layerGroup().addTo(map);
@@ -180,7 +181,6 @@ export default function MapView({
     ro.observe(wrapRef.current);
     window.addEventListener("resize", resize);
     
-    // تأكيد تحديث المقاسات عدة مرات لضمان عدم ظهور الشاشة البيضاء
     const t1 = setTimeout(resize, 100);
     const t2 = setTimeout(resize, 300);
     const t3 = setTimeout(resize, 600);
