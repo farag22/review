@@ -28,17 +28,17 @@ export default function AddStops() {
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const rows = await searchPlaces(q, pickup);
-        if (!cancelled && rows?.length) setResults(rows);
+        const rows = await searchPlaces(q);
+        if (!cancelled) setResults(rows?.length ? rows : searchLocalPlaces(q));
       } catch {
         if (!cancelled) setResults(searchLocalPlaces(q));
       }
-    }, 220);
+    }, 280);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, pickup]);
+  }, [query]);
 
   function addStop(place) {
     if (stops.length >= 3) return;

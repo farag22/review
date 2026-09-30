@@ -102,22 +102,13 @@ function photonPlace(feature) {
   };
 }
 
-function nearestLocalPlace(lat, lng) {
-  let best = LOCAL_PLACES[0];
-  let bestKm = Number.POSITIVE_INFINITY;
-  LOCAL_PLACES.forEach((place) => {
-    const km = haversineKm({ lat, lng }, place);
-    if (km < bestKm) {
-      best = place;
-      bestKm = km;
-    }
-  });
-  return best;
+function coordLabel(lat, lng) {
+  return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
 }
 
 export async function reverseGeocode(lat, lng) {
   try {
-    const data = await fetchJson(`${PHOTON}/reverse?lat=${lat}&lon=${lng}&lang=ar`, 4500);
+    const data = await fetchJson(`${PHOTON}/reverse?lat=${lat}&lon=${lng}&lang=ar`, 6000);
     const place = photonPlace(data?.features?.[0]);
     if (place?.lat) return { ...place, lat, lng };
   } catch {
@@ -126,7 +117,7 @@ export async function reverseGeocode(lat, lng) {
   try {
     const data = await fetchJson(
       `${NOMINATIM}/reverse?lat=${lat}&lon=${lng}&format=jsonv2&accept-language=ar`,
-      4500
+      6000
     );
     return {
       lat,
@@ -135,13 +126,11 @@ export async function reverseGeocode(lat, lng) {
       address: data.display_name || "",
     };
   } catch {
-    const near = nearestLocalPlace(lat, lng);
     return {
       lat,
       lng,
-      label: near.label,
-      address: near.address,
-      fallback: true,
+      label: coordLabel(lat, lng),
+      address: "",
     };
   }
 }
@@ -179,32 +168,23 @@ export function searchLocalPlaces(query, limit = 8) {
   return scored;
 }
 
-async function searchPhoton(q, { lat, lng } = {}) {
-  const params = new URLSearchParams({ q, limit: "8", lang: "ar" });
-  if (lat != null && lng != null) {
-    params.set("lat", String(lat));
-    params.set("lon", String(lng));
-  }
-  const data = await fetchJson(`${PHOTON}/api/?${params}`, 4500);
+async function searchPhoton(q) {
+  const params = new URLSearchParams({ q, limit: "12", lang: "ar" });
+  const data = await fetchJson(`${PHOTON}/api/?${params}`, 7000);
   return (data?.features || [])
     .map(photonPlace)
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 }
 
-async function searchNominatim(q, { lat, lng } = {}) {
+async function searchNominatim(q) {
   const params = new URLSearchParams({
     q,
     format: "jsonv2",
     addressdetails: "1",
-    limit: "8",
-    countrycodes: "eg",
+    limit: "12",
     "accept-language": "ar",
   });
-  if (lat != null && lng != null) {
-    params.set("viewbox", `${lng - 0.35},${lat + 0.35},${lng + 0.35},${lat - 0.35}`);
-    params.set("bounded", "0");
-  }
-  const rows = await fetchJson(`${NOMINATIM}/search?${params}`, 4500);
+  const rows = await fetchJson(`${NOMINATIM}/search?${params}`, 7000);
   return (rows || []).map((row) => ({
     lat: Number(row.lat),
     lng: Number(row.lon),
@@ -213,36 +193,26 @@ async function searchNominatim(q, { lat, lng } = {}) {
   }));
 }
 
-function mergePlaces(local, remote) {
-  const seen = new Set(local.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`));
-  const merged = [...local];
-  remote.forEach((place) => {
-    if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return;
-    const key = `${place.lat.toFixed(4)},${place.lng.toFixed(4)}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      merged.push(place);
-    }
+function mergePlaces(remote, local) {
+  const merged = [];
+  const seen = new Set();
+  [...remote, ...local].forEach((place) => {
+    if (!Number.isFinite(place?.lat) || !Number.isFinite(place?.lng)) return;
+    const key = `${place.lat.toFixed(4)},${place.lng.toFixed(4)}|${place.label || ""}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(place);
   });
-  return merged.slice(0, 10);
+  return merged.slice(0, 12);
 }
 
-export async function searchPlaces(query, { lat, lng } = {}) {
+export async function searchPlaces(query) {
   const q = String(query || "").trim();
-  if (q.length < 1) return LOCAL_PLACES.slice(0, 8);
+  if (q.length < 1) return [];
   const local = searchLocalPlaces(q);
-  try {
-    const photon = await searchPhoton(q, { lat, lng });
-    if (photon.length) return mergePlaces(local, photon);
-  } catch {
-    /* fallback */
-  }
-  try {
-    const nominatim = await searchNominatim(q, { lat, lng });
-    return mergePlaces(local, nominatim);
-  } catch {
-    return local.length ? local : LOCAL_PLACES.slice(0, 8);
-  }
+  const settled = await Promise.allSettled([searchPhoton(q), searchNominatim(q)]);
+  const remote = settled.flatMap((row) => (row.status === "fulfilled" ? row.value : []));
+  return mergePlaces(remote, local);
 }
 
 export async function getRoute(from, to, extras = []) {

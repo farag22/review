@@ -4,7 +4,7 @@ import { ScreenHeader, PrimaryButton, Chip } from "../../components/ui";
 import { PinIcon, SearchIcon, ClockIcon, PlusIcon } from "../../components/Icons";
 import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
-import { LOCAL_PLACES, formatDistance, reverseGeocode, searchLocalPlaces, searchPlaces } from "../../lib/geo";
+import { formatDistance, reverseGeocode, searchLocalPlaces, searchPlaces } from "../../lib/geo";
 
 export default function SetDestination() {
   const navigate = useNavigate();
@@ -12,42 +12,38 @@ export default function SetDestination() {
   const { pickup, setPickup, destination, setDestination, stops, savedPlaces, savePlace, route, locationError, refreshLocation } = useRide();
   const [query, setQuery] = useState(destination?.label || "");
   const [tab, setTab] = useState(location.state?.placeLabel || "fav");
-  const [results, setResults] = useState(LOCAL_PLACES.slice(0, 8));
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [mode, setMode] = useState("dropoff");
   const [pinBusy, setPinBusy] = useState(false);
 
   useEffect(() => {
     const q = query.trim();
-    setResults(q ? searchLocalPlaces(q) : LOCAL_PLACES.slice(0, 8));
-    if (q.length < 1) return undefined;
+    if (q.length < 2) {
+      setSearching(false);
+      setResults([]);
+      return undefined;
+    }
+    setResults(searchLocalPlaces(q));
+    setSearching(true);
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const rows = await searchPlaces(q, pickup);
+        const rows = await searchPlaces(q);
         if (cancelled) return;
-        const safeRows = Array.isArray(rows) ? rows : [];
-        if (safeRows.length) {
-          setResults(safeRows);
-        } else {
-          setResults([
-            { label: q, address: "منطقة رئيسية، مصر", lat: pickup?.lat || 30.466, lng: pickup?.lng || 31.185 },
-          ]);
-        }
+        setResults(Array.isArray(rows) ? rows : []);
       } catch {
         if (cancelled) return;
-        const local = searchLocalPlaces(q);
-        setResults(
-          local.length
-            ? local
-            : [{ label: q, address: "القليوبية / مصر", lat: pickup?.lat || 30.466, lng: pickup?.lng || 31.185 }]
-        );
+        setResults(searchLocalPlaces(q));
+      } finally {
+        if (!cancelled) setSearching(false);
       }
-    }, 220);
+    }, 280);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, pickup]);
+  }, [query]);
 
   async function applyMapPoint(coords, kind) {
     setPinBusy(true);
@@ -150,10 +146,11 @@ export default function SetDestination() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="إلى أين تذهب؟"
+            placeholder="ابحث عن أي مكان في العالم"
             className="flex-1 bg-transparent text-[14px] placeholder:text-ink/40"
           />
         </div>
+        {searching ? <p className="text-[12px] text-ink/45">جاري البحث في كل الأماكن...</p> : null}
         {stops.length > 0 && (
           <p className="text-[12px] text-ink/50">{stops.length} توقف إضافي</p>
         )}
@@ -172,6 +169,9 @@ export default function SetDestination() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 mt-3 space-y-1">
+        {query.trim().length >= 2 && !searching && !results.length ? (
+          <p className="text-[13px] text-ink/45 py-4">لا توجد نتائج. جرّب اسم مدينة أو شارع أو معلم.</p>
+        ) : null}
         {results.map((p) => (
           <button
             key={`${p.lat}-${p.lng}-${p.label}`}
