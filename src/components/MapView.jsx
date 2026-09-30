@@ -3,9 +3,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDistance } from "../lib/geo";
 
-// تم استبدال رابط الخرائط برابط OpenStreetMap النظيف والخالي تماماً من طلب المفاتيح
-const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const TILES = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const ATTR = "&copy; OpenStreetMap &copy; CARTO";
 
 function pointKey(point) {
   if (!point || point.lat == null || point.lng == null) return "";
@@ -159,7 +158,7 @@ export default function MapView({
       keyboard: interactive,
     }).setView([center.lat, center.lng], 15);
     
-    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19 }).addTo(map);
+    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 20, subdomains: "abcd" }).addTo(map);
     if (interactive) L.control.zoom({ position: "topleft" }).addTo(map);
     
     layersRef.current.markers = L.layerGroup().addTo(map);
@@ -171,24 +170,16 @@ export default function MapView({
       clickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
     });
 
-    const resize = () => {
-      if (mapRef.current) {
-        mapRef.current.invalidateSize({ animate: false });
-      }
-    };
-    
+    const resize = () => map.invalidateSize({ animate: false });
     const ro = new ResizeObserver(resize);
     ro.observe(wrapRef.current);
     window.addEventListener("resize", resize);
-    
-    const t1 = setTimeout(resize, 100);
-    const t2 = setTimeout(resize, 300);
-    const t3 = setTimeout(resize, 600);
+    const t1 = setTimeout(resize, 80);
+    const t2 = setTimeout(resize, 400);
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
-      clearTimeout(t3);
       window.removeEventListener("resize", resize);
       ro.disconnect();
       map.remove();
@@ -358,7 +349,7 @@ export default function MapView({
       className={`relative w-full overflow-hidden bg-[#d7e4dc] ${fill ? "h-full min-h-[46vh] rounded-none" : "rounded-2xl"}`}
       style={{ height: fill ? "100%" : cssHeight, minHeight: fill ? "46vh" : undefined, direction: "ltr" }}
     >
-      <div ref={wrapRef} className="absolute inset-0 z-0 w-full h-full" />
+      <div ref={wrapRef} className="absolute inset-0 z-0" />
       {routeInfo?.distanceKm != null ? (
         <div className="sd-map-chip absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           {formatDistance(routeInfo.distanceKm)}
