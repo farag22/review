@@ -156,9 +156,16 @@ export default function MapView({
       touchZoom: interactive,
       boxZoom: interactive,
       keyboard: interactive,
-    }).setView([center.lat, center.lng], 15);
+    }).setView([center.lat, center.lng], 16); // ضبط مستوى الزوم الافتراضي ليوضح تفاصيل الشوارع بدقة
     
-    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 20, subdomains: "abcd" }).addTo(map);
+    // تفعيل دعم الشاشات العالية الوضوح (Retina) وزيادة الحد الأقصى للتقريب لرؤية أضيق الشوارع
+    L.tileLayer(TILES, { 
+      attribution: ATTR, 
+      maxZoom: 20, 
+      subdomains: "abcd",
+      detectRetina: true 
+    }).addTo(map);
+
     if (interactive) L.control.zoom({ position: "topleft" }).addTo(map);
     
     layersRef.current.markers = L.layerGroup().addTo(map);
@@ -323,9 +330,9 @@ export default function MapView({
       if (!bounds.length && driver?.lat != null) bounds.push([driver.lat, driver.lng]);
       if (!bounds.length && gpsPoint) bounds.push([gpsPoint.lat, gpsPoint.lng]);
       if (bounds.length > 1) {
-        map.fitBounds(bounds, { maxZoom: 16, animate: false, ...pad });
+        map.fitBounds(bounds, { maxZoom: 17, animate: false, ...pad });
       } else if (bounds.length === 1) {
-        map.setView(bounds[0], 15, { animate: false });
+        map.setView(bounds[0], 16, { animate: false });
       }
       map.invalidateSize({ animate: false });
     } else if (followRef.current && driver?.lat != null) {
@@ -339,7 +346,7 @@ export default function MapView({
     const map = mapRef.current;
     const target = userLocation || driver || pickup;
     if (!map || target?.lat == null) return;
-    map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 16), { duration: 0.45 });
+    map.flyTo([target.lat, target.lng], 17, { duration: 0.45 });
   }
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;
