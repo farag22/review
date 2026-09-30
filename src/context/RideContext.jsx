@@ -58,7 +58,7 @@ export function RideProvider({ children }) {
       setGpsReady(true);
       setLocationError("");
       
-      // تحديث الموقع الفوري بناءً على إحداثيات الـ GPS الحقيقية
+      // تحديث الموقع الحالي بناءً على إحداثيات الـ GPS بحرية تامة دون فرض أسماء
       setPickup((prev) => {
         if (prev?.manual) return { ...prev, accuracy: coords.accuracy, heading: coords.heading };
         return {
@@ -67,7 +67,7 @@ export function RideProvider({ children }) {
           lng: coords.lng,
           accuracy: coords.accuracy,
           heading: coords.heading,
-          label: `بلقيس (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
+          label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "الموقع الحالي",
         };
       });
 
@@ -82,14 +82,12 @@ export function RideProvider({ children }) {
         setPickup((prev) => {
           const locked = prev?.manual;
           if (locked) return { ...prev, accuracy: coords.accuracy };
-          // منع ظهور أسماء غير مقصودة والتأكد من ملاءمتها للموقع الحقيقي
-          const safeLabel = place?.label && !place.label.includes("المترو") ? place.label : "بلقيس، القليوبية";
-          return { ...place, label: safeLabel, accuracy: coords.accuracy };
+          return { ...place, accuracy: coords.accuracy };
         });
       } catch {
         if (cancelled) return;
         setPickup((prev) =>
-          prev?.manual ? prev : { label: "بلقيس، القليوبية", address: "", lat: coords.lat, lng: coords.lng }
+          prev?.manual ? prev : { label: "الموقع الحالي", address: "", lat: coords.lat, lng: coords.lng }
         );
       }
     }
