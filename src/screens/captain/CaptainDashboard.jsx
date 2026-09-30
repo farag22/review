@@ -15,7 +15,7 @@ const TYPE_LABELS = {
 
 export default function CaptainDashboard() {
   const navigate = useNavigate();
-  const { user, supabase } = useAuth();
+  const { user, signOut } = useAuth();
   const {
     driver,
     loading,
@@ -48,16 +48,10 @@ export default function CaptainDashboard() {
         >
           تسجيل كابتن جديد
         </button>
-
-        {/* زر تسجيل الخروج الإجباري وحل مشكلة الشاشة المعلقة */}
         <button
           onClick={async () => {
-            localStorage.clear();
-            sessionStorage.clear();
-            if (supabase?.auth) {
-              await supabase.auth.signOut();
-            }
-            window.location.href = "/login";
+            await signOut();
+            navigate("/captain/signin", { replace: true });
           }}
           className="mt-3 bg-red-600 text-white font-bold text-[14px] px-5 py-2.5 rounded-xl shadow"
         >

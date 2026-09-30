@@ -22,10 +22,19 @@ export function AuthProvider({ children }) {
     }
 
     const metaRole = String(user.user_metadata?.role || "").toLowerCase();
-    const [{ data: profileRow }, { data: driverRow }] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, phone, role, avatar_url").eq("id", user.id).maybeSingle(),
-      supabase.from("drivers").select("id, user_id, full_name, phone, car_model, plate_number, ride_type").eq("user_id", user.id).maybeSingle(),
-    ]);
+    let profileRow = null;
+    let driverRow = null;
+    try {
+      const [{ data: nextProfileRow }, { data: nextDriverRow }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, phone, role, avatar_url").eq("id", user.id).maybeSingle(),
+        supabase.from("drivers").select("id, user_id, full_name, phone, car_model, plate_number, ride_type").eq("user_id", user.id).maybeSingle(),
+      ]);
+      profileRow = nextProfileRow;
+      driverRow = nextDriverRow;
+    } catch {
+      profileRow = null;
+      driverRow = null;
+    }
 
     const nextProfile = profileRow || {
       id: user.id,
@@ -45,26 +54,62 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
+    let bootstrapped = false;
+    let lastToken = null;
 
-    supabase.auth.getSession().then(async ({ data }) => {
+    async function applySession(nextSession, { finishLoading } = {}) {
       if (cancelled) return;
-      setSession(data.session);
-      await hydrateAccount(data.session);
-      if (!cancelled) setLoading(false);
-    });
+      const token = nextSession?.access_token || null;
+      const sameUser = token === lastToken && Boolean(token) === Boolean(nextSession?.user);
+      lastToken = token;
+      setSession(nextSession || null);
+      if (!sameUser) {
+        try {
+          await hydrateAccount(nextSession);
+        } catch {
+          if (!nextSession?.user) {
+            setProfile(null);
+            setDriver(null);
+            setAccountType("guest");
+          }
+        }
+      }
+      if (finishLoading && !cancelled) setLoading(false);
+    }
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setTimeout(async () => {
-        if (cancelled) return;
-        await hydrateAccount(newSession);
-        if (!cancelled) setLoading(false);
+    supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        bootstrapped = true;
+        await applySession(data?.session || null, { finishLoading: true });
+      })
+      .catch(async () => {
+        bootstrapped = true;
+        await applySession(null, { finishLoading: true });
+      });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === "INITIAL_SESSION") return;
+      setTimeout(() => {
+        applySession(newSession, { finishLoading: bootstrapped });
       }, 0);
     });
+
+    function restoreIfVisible() {
+      if (document.visibilityState !== "visible") return;
+      supabase.auth.getSession().then(({ data }) => {
+        if (cancelled) return;
+        applySession(data?.session || null, { finishLoading: true });
+      });
+    }
+    window.addEventListener("focus", restoreIfVisible);
+    document.addEventListener("visibilitychange", restoreIfVisible);
 
     return () => {
       cancelled = true;
       listener.subscription.unsubscribe();
+      window.removeEventListener("focus", restoreIfVisible);
+      document.removeEventListener("visibilitychange", restoreIfVisible);
     };
   }, []);
 
@@ -168,11 +213,16 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    setSession(null);
-    setProfile(null);
-    setDriver(null);
-    setAccountType("guest");
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      await supabase.auth.signOut({ scope: "local" });
+    } finally {
+      setSession(null);
+      setProfile(null);
+      setDriver(null);
+      setAccountType("guest");
+    }
   }
 
   async function updateProfile({ fullName, phone }) {

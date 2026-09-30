@@ -1,15 +1,20 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { PinIcon, } from "../../components/Icons";
+import { PinIcon } from "../../components/Icons";
 import { BrandMark } from "../../components/ui";
+import { useAuth } from "../../context/AuthContext";
+import { accountHomePath } from "../../lib/session";
 
 export default function Splash() {
   const navigate = useNavigate();
+  const { session, user, loading, accountType } = useAuth();
 
   useEffect(() => {
-    const t = setTimeout(() => navigate("/welcome"), 1400);
+    if (loading) return undefined;
+    const next = session?.user || user ? accountHomePath(accountType) : "/welcome";
+    const t = setTimeout(() => navigate(next, { replace: true }), 1400);
     return () => clearTimeout(t);
-  }, [navigate]);
+  }, [accountType, loading, navigate, session, user]);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-sand">

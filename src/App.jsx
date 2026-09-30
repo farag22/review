@@ -46,10 +46,10 @@ function AuthLoading() {
 }
 
 function RedirectIfAuthed({ children }) {
-  const { user, loading, accountType } = useAuth();
+  const { session, user, loading, accountType } = useAuth();
   const location = useLocation();
   if (loading) return <AuthLoading />;
-  if (user) {
+  if (session?.user || user) {
     const next = accountHomePath(accountType);
     if (location.pathname !== next) return <Navigate to={next} replace />;
   }
@@ -57,27 +57,27 @@ function RedirectIfAuthed({ children }) {
 }
 
 function RequireAuth({ children }) {
-  const { user, loading, accountType } = useAuth();
+  const { session, user, loading, accountType } = useAuth();
   if (loading) return <AuthLoading />;
-  if (!user) return <Navigate to="/signin" replace />;
+  if (!(session?.user || user)) return <Navigate to="/signin" replace />;
   if (accountType === "admin") return <Navigate to="/admin/dashboard" replace />;
   if (accountType === "captain") return <Navigate to="/captain/dashboard" replace />;
   return children;
 }
 
 function RequireCaptainAuth({ children }) {
-  const { user, loading, accountType } = useAuth();
+  const { session, user, loading, accountType } = useAuth();
   if (loading) return <AuthLoading />;
-  if (!user) return <Navigate to="/captain/signin" replace />;
+  if (!(session?.user || user)) return <Navigate to="/captain/signin" replace />;
   if (accountType === "admin") return <Navigate to="/admin/dashboard" replace />;
   if (accountType !== "captain") return <Navigate to="/home" replace />;
   return children;
 }
 
 function RequireAdminAuth({ children }) {
-  const { user, loading, accountType } = useAuth();
+  const { session, user, loading, accountType } = useAuth();
   if (loading) return <AuthLoading />;
-  if (!user) return <Navigate to="/admin/signin" replace />;
+  if (!(session?.user || user)) return <Navigate to="/admin/signin" replace />;
   if (accountType !== "admin") return <Navigate to={accountHomePath(accountType)} replace />;
   return children;
 }
