@@ -4,6 +4,7 @@ import { ScreenHeader, PrimaryButton } from "../../components/ui";
 import { CarBadge } from "../../components/Icons";
 import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
+import { WALLET_INSUFFICIENT_MSG, availableWalletBalance } from "../../lib/finance";
 import { formatDistance, formatEgp } from "../../lib/geo";
 
 const PAYMENT_LABELS = {
@@ -24,12 +25,23 @@ export default function ConfirmRide() {
     requestRide,
     route,
     paymentMethod,
+    setPaymentMethod,
+    walletBalance,
+    heldWalletFare,
   } = useRide();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const fare = Number(selectedRide?.price) || 0;
+  const available = availableWalletBalance(walletBalance, heldWalletFare);
+  const walletBlocked = paymentMethod === "wallet" && available < fare;
+
   async function handleConfirm() {
     setError("");
+    if (walletBlocked) {
+      setError(WALLET_INSUFFICIENT_MSG);
+      return;
+    }
     setLoading(true);
     try {
       await requestRide();
@@ -90,7 +102,15 @@ export default function ConfirmRide() {
       <div className="flex-1" />
 
       <div className="px-5 py-4 space-y-2">
-        {error && <p className="text-red-500 text-[13px]">{error}</p>}
+        {walletBlocked && (
+          <p className="text-red-500 text-[13px]">{WALLET_INSUFFICIENT_MSG}</p>
+        )}
+        {error && !walletBlocked && <p className="text-red-500 text-[13px]">{error}</p>}
+        {paymentMethod === "wallet" && (
+          <p className="text-[12px] text-ink/50">
+            المتاح بالمحفظة {formatEgp(available)} من أصل {formatEgp(walletBalance)}
+          </p>
+        )}
         <button
           onClick={() => navigate("/wallet")}
           className="w-full flex items-center justify-between text-[13px] text-ink/60 py-1"
@@ -98,8 +118,17 @@ export default function ConfirmRide() {
           <span>طريقة الدفع</span>
           <span className="font-semibold text-ink">{PAYMENT_LABELS[paymentMethod] || "نقدًا"} ›</span>
         </button>
-        <PrimaryButton onClick={handleConfirm} disabled={loading || !destination?.lat}>
-          {loading ? "جاري الطلب..." : "تأكيد الرحلة"}
+        {walletBlocked && (
+          <button
+            type="button"
+            onClick={() => setPaymentMethod("cash")}
+            className="w-full h-11 rounded-xl border border-black/10 bg-white font-bold text-[13px]"
+          >
+            التحويل للدفع نقدًا
+          </button>
+        )}
+        <PrimaryButton onClick={handleConfirm} disabled={loading || !destination?.lat || walletBlocked}>
+          {loading ? "جاري الطلب..." : walletBlocked ? "الرصيد غير كافٍ" : "تأكيد الرحلة"}
         </PrimaryButton>
       </div>
     </div>

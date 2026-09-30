@@ -4,6 +4,7 @@ import { ArrowIcon } from "../../components/ui";
 import { ClockIcon, PaymentMethodIcon, RideTypeIcon } from "../../components/Icons";
 import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
+import { WALLET_INSUFFICIENT_MSG, availableWalletBalance } from "../../lib/finance";
 import { formatDistance } from "../../lib/geo";
 
 function badgeClass(type) {
@@ -24,6 +25,8 @@ export default function ChooseRide() {
     paymentMethod,
     setPaymentMethod,
     refreshLocation,
+    walletBalance,
+    heldWalletFare,
   } = useRide();
 
   useEffect(() => {
@@ -34,7 +37,9 @@ export default function ChooseRide() {
     ? `${formatDistance(route.distanceKm)} · ${route.durationMin} د`
     : "جاري حساب المسار...";
   const payId = paymentMethod === "wallet" ? "wallet" : "cash";
-  const cta = selectedRide?.cta || "اطلب الآن";
+  const available = availableWalletBalance(walletBalance, heldWalletFare);
+  const walletBlocked = payId === "wallet" && available < (Number(selectedRide?.price) || 0);
+  const cta = walletBlocked ? "الرصيد غير كافٍ" : selectedRide?.cta || "اطلب الآن";
 
   return (
     <div className="ride-live">
@@ -127,6 +132,9 @@ export default function ChooseRide() {
             })}
           </div>
 
+          {walletBlocked && (
+            <p className="mt-3 text-[12px] text-rose-200">{WALLET_INSUFFICIENT_MSG}</p>
+          )}
           <div className="mt-3.5 flex items-stretch gap-2.5">
             <button
               type="button"
@@ -143,7 +151,7 @@ export default function ChooseRide() {
             </button>
             <button
               type="button"
-              disabled={!selectedRide || !destination?.lat}
+              disabled={!selectedRide || !destination?.lat || walletBlocked}
               onClick={() => navigate("/confirm-ride")}
               className="flex-1 h-14 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[15px] shadow-[0_10px_28px_rgba(16,185,129,0.38)] active:bg-emerald-400 disabled:opacity-40 disabled:pointer-events-none transition-colors"
             >

@@ -2,6 +2,19 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, watchPosition } from "../lib/geo";
+import { WALLET_INSUFFICIENT_MSG, appCommission, captainNet, roundMoney } from "../lib/finance";
+
+function mapCaptainError(error, fallback) {
+  const msg = error?.message || "";
+  if (/رصيد المحفظة غير كاف/.test(msg)) return WALLET_INSUFFICIENT_MSG;
+  return msg || fallback;
+}
+
+function startOfLocalDayIso() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
 const CaptainContext = createContext(null);
 
@@ -18,6 +31,14 @@ export function CaptainProvider({ children }) {
   const [riderProfile, setRiderProfile] = useState(null);
   const [rideTypes, setRideTypes] = useState([]);
   const [error, setError] = useState("");
+  const [todayEarnings, setTodayEarnings] = useState({
+    rides: 0,
+    gross: 0,
+    commission: 0,
+    net: 0,
+    cashCommissionDue: 0,
+    walletCredit: 0,
+  });
   const driverRef = useRef(null);
   const lastGpsRef = useRef(null);
 
@@ -131,6 +152,7 @@ export function CaptainProvider({ children }) {
     if (!current?.id) {
       setPendingRides([]);
       setActiveRide(null);
+      setTodayEarnings({ rides: 0, gross: 0, commission: 0, net: 0, cashCommissionDue: 0, walletCredit: 0 });
       return;
     }
 
@@ -146,6 +168,7 @@ export function CaptainProvider({ children }) {
 
     if (!current.is_online) {
       setPendingRides([]);
+      await refreshTodayEarnings(current);
       return;
     }
 
@@ -159,6 +182,48 @@ export function CaptainProvider({ children }) {
     if (current.ride_type) query = query.eq("ride_type", current.ride_type);
     const { data } = await query;
     setPendingRides(data || []);
+    await refreshTodayEarnings(current);
+  }
+
+  async function refreshTodayEarnings(currentDriver = driverRef.current) {
+    if (!currentDriver?.id) {
+      setTodayEarnings({ rides: 0, gross: 0, commission: 0, net: 0, cashCommissionDue: 0, walletCredit: 0 });
+      return;
+    }
+    const since = startOfLocalDayIso();
+    let { data, error: earningsError } = await supabase
+      .from("rides")
+      .select("fare, payment_method, app_commission, captain_net, completed_at")
+      .eq("driver_id", currentDriver.id)
+      .eq("status", "completed")
+      .gte("completed_at", since);
+    if (earningsError && /app_commission|captain_net/i.test(earningsError.message || "")) {
+      ({ data } = await supabase
+        .from("rides")
+        .select("fare, payment_method, completed_at")
+        .eq("driver_id", currentDriver.id)
+        .eq("status", "completed")
+        .gte("completed_at", since));
+    }
+    const rows = data || [];
+    const summary = rows.reduce(
+      (acc, ride) => {
+        const fare = Number(ride.fare) || 0;
+        const commission = Number(ride.app_commission);
+        const net = Number(ride.captain_net);
+        const cut = Number.isFinite(commission) ? commission : appCommission(fare);
+        const takeHome = Number.isFinite(net) ? net : captainNet(fare);
+        acc.rides += 1;
+        acc.gross = roundMoney(acc.gross + fare);
+        acc.commission = roundMoney(acc.commission + cut);
+        acc.net = roundMoney(acc.net + takeHome);
+        if (ride.payment_method === "wallet") acc.walletCredit = roundMoney(acc.walletCredit + takeHome);
+        else acc.cashCommissionDue = roundMoney(acc.cashCommissionDue + cut);
+        return acc;
+      },
+      { rides: 0, gross: 0, commission: 0, net: 0, cashCommissionDue: 0, walletCredit: 0 }
+    );
+    setTodayEarnings(summary);
   }
 
   useEffect(() => {
@@ -310,9 +375,11 @@ export function CaptainProvider({ children }) {
         .select()
         .single());
     }
-    if (updateError) throw updateError;
-    if (status === "completed") setActiveRide(null);
-    else setActiveRide(data);
+    if (updateError) throw new Error(mapCaptainError(updateError, "تعذر تحديث حالة الرحلة"));
+    if (status === "completed") {
+      setActiveRide(null);
+      await refreshTodayEarnings();
+    } else setActiveRide(data);
     return data;
   }
 
@@ -327,11 +394,13 @@ export function CaptainProvider({ children }) {
     rideTypes,
     error,
     setError,
+    todayEarnings,
     refreshLocation,
     toggleOnline,
     acceptRide,
     updateActiveStatus,
     refreshPendingAndActive,
+    refreshTodayEarnings,
   };
 
   return <CaptainContext.Provider value={value}>{children}</CaptainContext.Provider>;

@@ -4,6 +4,7 @@ import MapView from "../../components/MapView";
 import RideLiveOverlay from "../../components/RideLiveOverlay";
 import { PrimaryButton } from "../../components/ui";
 import { useCaptain } from "../../context/CaptainContext";
+import { appCommission, captainNet } from "../../lib/finance";
 import { formatDistance, formatEgp, haversineKm } from "../../lib/geo";
 
 const STEPS = [
@@ -54,10 +55,15 @@ export default function CaptainActiveRide() {
         <p className="text-brand-600 text-[13px] font-bold">اكتملت الرحلة</p>
         <h1 className="text-2xl font-extrabold mt-1">تم إنهاء الرحلة</h1>
         <div className="mt-8 rounded-2xl bg-white shadow-card p-5 space-y-3">
-          <Row label="المسافة" value={formatDistance(Number(done.distance_km) || 0)} />
-          <Row label="المدة" value={`${done.duration_min || 0} د`} />
-          <Row label="التكلفة" value={formatEgp(done.fare)} />
-          <Row label="الدفع" value={done.payment_method === "cash" ? "نقدًا" : done.payment_method} />
+           <Row label="المسافة" value={formatDistance(Number(done.distance_km) || 0)} />
+           <Row label="المدة" value={`${done.duration_min || 0} د`} />
+           <Row label="التكلفة" value={formatEgp(done.fare)} />
+           <Row label="عمولة التطبيق 10%" value={formatEgp(done.app_commission ?? appCommission(done.fare))} />
+           <Row label="صافي الكابتن" value={formatEgp(done.captain_net ?? captainNet(done.fare))} />
+           <Row
+             label="الدفع"
+             value={done.payment_method === "wallet" ? "محفظة — صافي للحساب" : "نقدًا — العمولة على الكابتن"}
+           />
         </div>
         <div className="flex-1" />
         <PrimaryButton className="mb-6" onClick={() => navigate("/captain/dashboard")}>

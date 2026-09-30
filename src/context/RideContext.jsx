@@ -11,6 +11,15 @@ import {
   reverseGeocode,
   watchPosition,
 } from "../lib/geo";
+import { WALLET_INSUFFICIENT_MSG, availableWalletBalance } from "../lib/finance";
+
+const OPEN_WALLET_STATUSES = ["requested", "scheduled", "accepted", "arrived", "in_progress"];
+
+function mapRideError(error, fallback) {
+  const msg = error?.message || "";
+  if (/رصيد المحفظة غير كاف/.test(msg)) return WALLET_INSUFFICIENT_MSG;
+  return msg || fallback;
+}
 
 const RideContext = createContext(null);
 
@@ -36,6 +45,8 @@ export function RideProvider({ children }) {
   const [savedPlaces, setSavedPlaces] = useState([]);
   const [locationError, setLocationError] = useState("");
   const [gpsReady, setGpsReady] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [heldWalletFare, setHeldWalletFare] = useState(0);
   const activeRideRef = useRef(null);
   const lastGeoRef = useRef({ lat: null, lng: null, at: 0 });
 
@@ -104,8 +115,50 @@ export function RideProvider({ children }) {
       });
   }, []);
 
+  async function refreshWallet() {
+    if (!user?.id) {
+      setWalletBalance(0);
+      setHeldWalletFare(0);
+      return { balance: 0, held: 0, available: 0 };
+    }
+    const [{ data: wallet }, { data: heldRows }] = await Promise.all([
+      supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle(),
+      supabase
+        .from("rides")
+        .select("fare")
+        .eq("rider_id", user.id)
+        .eq("payment_method", "wallet")
+        .in("status", OPEN_WALLET_STATUSES),
+    ]);
+    const balance = Number(wallet?.balance) || 0;
+    const held = (heldRows || []).reduce((sum, row) => sum + (Number(row.fare) || 0), 0);
+    setWalletBalance(balance);
+    setHeldWalletFare(held);
+    return { balance, held, available: availableWalletBalance(balance, held) };
+  }
+
+  async function assertWalletCanPay(fare) {
+    const amount = Number(fare) || 0;
+    const { error } = await supabase.rpc("assert_wallet_can_pay", {
+      p_rider_id: user.id,
+      p_fare: amount,
+    });
+    if (!error) return;
+    if (/could not find the function|schema cache|does not exist/i.test(error.message || "")) {
+      const snapshot = await refreshWallet();
+      if (snapshot.available < amount) throw new Error(WALLET_INSUFFICIENT_MSG);
+      return;
+    }
+    throw new Error(mapRideError(error, WALLET_INSUFFICIENT_MSG));
+  }
+
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setSavedPlaces([]);
+      setWalletBalance(0);
+      setHeldWalletFare(0);
+      return;
+    }
     supabase
       .from("saved_places")
       .select("*")
@@ -121,6 +174,8 @@ export function RideProvider({ children }) {
         const def = data?.find((m) => m.is_default);
         if (def) setPaymentMethod(def.type);
       });
+
+    refreshWallet();
   }, [user]);
 
   useEffect(() => {
@@ -185,6 +240,10 @@ export function RideProvider({ children }) {
     const option = selectedRide || rideOptions[0];
     if (!option) throw new Error("اختر نوع الرحلة");
 
+    if (paymentMethod === "wallet") {
+      await assertWalletCanPay(option.price);
+    }
+
     const payload = {
       rider_id: user.id,
       pickup_address: pickup?.address || pickup?.label,
@@ -207,7 +266,7 @@ export function RideProvider({ children }) {
       const { distance_km, duration_min, scheduled_at, ...legacy } = payload;
       ({ data, error } = await supabase.from("rides").insert(legacy).select().single());
     }
-    if (error) throw error;
+    if (error) throw new Error(mapRideError(error, "تعذر طلب الرحلة"));
 
     if (stops.length && data?.id) {
       await supabase.from("ride_stops").insert(
@@ -225,6 +284,7 @@ export function RideProvider({ children }) {
     setActiveRide(data);
     activeRideRef.current = data;
     if (data.driver_id) await refreshDriver(data.driver_id);
+    await refreshWallet();
     return data;
   }
 
@@ -234,9 +294,10 @@ export function RideProvider({ children }) {
     if (status === "in_progress") patch.started_at = new Date().toISOString();
     if (status === "completed") patch.completed_at = new Date().toISOString();
     const { data, error } = await supabase.from("rides").update(patch).eq("id", activeRide.id).select().single();
-    if (error) throw error;
+    if (error) throw new Error(mapRideError(error, "تعذر تحديث الرحلة"));
     setActiveRide(data);
     activeRideRef.current = data;
+    if (status === "completed" || status === "cancelled") await refreshWallet();
     return data;
   }
 
@@ -247,6 +308,7 @@ export function RideProvider({ children }) {
     setActiveRide(null);
     activeRideRef.current = null;
     setDriver(null);
+    await refreshWallet();
   }
 
   async function savePlace({ label, place }) {
@@ -284,7 +346,11 @@ export function RideProvider({ children }) {
     savedPlaces,
     locationError,
     gpsReady,
+    walletBalance,
+    heldWalletFare,
+    walletAvailable: availableWalletBalance(walletBalance, heldWalletFare),
     refreshLocation,
+    refreshWallet,
     requestRide,
     updateRideStatus,
     cancelRide,

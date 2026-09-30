@@ -24,6 +24,7 @@ export default function CaptainDashboard() {
     pendingRides,
     activeRide,
     error,
+    todayEarnings,
     toggleOnline,
     acceptRide,
     refreshLocation,
@@ -123,6 +124,34 @@ export default function CaptainDashboard() {
             ? `موقعك يُحدَّث على الخريطة · ${location?.lat?.toFixed(4)}, ${location?.lng?.toFixed(4)}`
             : "اتصل لاستقبال الطلبات المطابقة لنوع مركبتك"}
         </p>
+      </div>
+
+      <div className="px-5 mt-4">
+        <div className="rounded-2xl bg-white shadow-card p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[12px] text-ink/50">صافي اليوم بعد عمولة 10%</p>
+            <span className="text-[11px] text-ink/40">{todayEarnings.rides} رحلة</span>
+          </div>
+          <p className="text-[22px] font-extrabold text-brand-700 mt-1">{formatEgp(todayEarnings.net)}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+            <div className="rounded-xl bg-sand p-2.5">
+              <p className="text-ink/45">إجمالي الأجرة</p>
+              <p className="font-bold mt-0.5">{formatEgp(todayEarnings.gross)}</p>
+            </div>
+            <div className="rounded-xl bg-sand p-2.5">
+              <p className="text-ink/45">عمولة التطبيق</p>
+              <p className="font-bold mt-0.5">{formatEgp(todayEarnings.commission)}</p>
+            </div>
+            <div className="rounded-xl bg-sand p-2.5">
+              <p className="text-ink/45">صافي المحفظة</p>
+              <p className="font-bold mt-0.5">{formatEgp(todayEarnings.walletCredit)}</p>
+            </div>
+            <div className="rounded-xl bg-sand p-2.5">
+              <p className="text-ink/45">عمولة النقد المستحقة</p>
+              <p className="font-bold mt-0.5">{formatEgp(todayEarnings.cashCommissionDue)}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="px-5 mt-4">

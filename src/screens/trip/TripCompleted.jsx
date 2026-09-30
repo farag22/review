@@ -13,7 +13,7 @@ const PAYMENT_LABELS = {
 
 export default function TripCompleted() {
   const navigate = useNavigate();
-  const { destination, selectedRide, driver, paymentMethod, updateRideStatus, setActiveRide, setDriver } = useRide();
+  const { destination, selectedRide, driver, paymentMethod, activeRide, updateRideStatus, setActiveRide, setDriver } = useRide();
   const [rating, setRating] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -57,7 +57,7 @@ export default function TripCompleted() {
         <div className="border-t border-black/5 pt-2 flex items-center justify-between">
           <span className="text-[13px] font-bold">الإجمالي</span>
           <span className="text-[16px] font-extrabold text-brand-700">
-            {formatEgp(selectedRide?.price || 0)}
+            {formatEgp(activeRide?.fare || selectedRide?.price || 0)}
           </span>
         </div>
       </div>

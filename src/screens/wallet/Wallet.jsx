@@ -4,6 +4,7 @@ import { WalletIcon, PlusIcon } from "../../components/Icons";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 import { useRide } from "../../context/RideContext";
+import { availableWalletBalance } from "../../lib/finance";
 import { formatEgp } from "../../lib/geo";
 
 const TYPE_META = {
@@ -23,7 +24,7 @@ const REQUEST_STATUS = {
 
 export default function Wallet() {
   const { user } = useAuth();
-  const { paymentMethod, setPaymentMethod } = useRide();
+  const { paymentMethod, setPaymentMethod, heldWalletFare } = useRide();
   const [balance, setBalance] = useState(0);
   const [methods, setMethods] = useState([]);
   const [amount, setAmount] = useState("");
@@ -152,6 +153,8 @@ export default function Wallet() {
     setSuccess("تم نسخ رقم فودافون كاش");
   }
 
+  const available = availableWalletBalance(balance, heldWalletFare);
+
   return (
     <div className="flex-1 flex flex-col">
       <ScreenHeader title="المحفظة" />
@@ -163,8 +166,15 @@ export default function Wallet() {
             <span>رصيد المحفظة</span>
           </div>
           <p className="text-3xl font-extrabold mt-2">
-            {formatEgp(balance).replace(" ج.م", "")} <span className="text-base font-semibold">ج.م</span>
+            {formatEgp(available).replace(" ج.م", "")} <span className="text-base font-semibold">ج.م</span>
           </p>
+          {heldWalletFare > 0 ? (
+            <p className="text-white/75 text-[12px] mt-1">
+              محجوز لرحلات جارية {formatEgp(heldWalletFare)} · الرصيد {formatEgp(balance)}
+            </p>
+          ) : (
+            <p className="text-white/75 text-[12px] mt-1">الرصيد المتاح للطلب بالمحفظة</p>
+          )}
           <p className="text-white/80 text-[12px] mt-3">حوّل فودافون كاش إلى</p>
           <button
             type="button"
