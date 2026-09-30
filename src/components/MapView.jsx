@@ -3,8 +3,9 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDistance } from "../lib/geo";
 
-const TILES = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-const ATTR = "&copy; OpenStreetMap &copy; CARTO";
+// استخدام خريطة OpenStreetMap النظيفة والمجانية تماماً لضمان عدم ظهور أي قيود أو مفاتيح
+const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 function pointKey(point) {
   if (!point || point.lat == null || point.lng == null) return "";
@@ -156,13 +157,11 @@ export default function MapView({
       touchZoom: interactive,
       boxZoom: interactive,
       keyboard: interactive,
-    }).setView([center.lat, center.lng], 16); // ضبط مستوى الزوم الافتراضي ليوضح تفاصيل الشوارع بدقة
+    }).setView([center.lat, center.lng], 16);
     
-    // تفعيل دعم الشاشات العالية الوضوح (Retina) وزيادة الحد الأقصى للتقريب لرؤية أضيق الشوارع
     L.tileLayer(TILES, { 
       attribution: ATTR, 
       maxZoom: 20, 
-      subdomains: "abcd",
       detectRetina: true 
     }).addTo(map);
 
