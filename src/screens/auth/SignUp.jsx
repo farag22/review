@@ -23,13 +23,17 @@ export default function SignUp() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (form.password.length < 6) {
+      setError("كلمة السر يجب ألا تقل عن 6 أحرف");
+      return;
+    }
     if (form.password !== form.confirmPassword) {
       setError("كلمة السر غير متطابقة");
       return;
     }
     const identity = resolveEmailAndPhone(form.email, form.phone);
     if (!identity.email) {
-      setError("أدخل بريدًا إلكترونيًا صحيحًا في خانة الإيميل");
+      setError("أدخل بريدًا إلكترونيًا صحيحًا أو رقم هاتف");
       return;
     }
     setLoading(true);
@@ -44,11 +48,14 @@ export default function SignUp() {
       return;
     }
     if (!data?.session) {
-      setError("تم إنشاء الحساب. راجع بريدك لتأكيد الإيميل ثم سجّل الدخول");
+      navigate("/signin", {
+        replace: true,
+        state: { notice: "تم إنشاء الحساب. سجّل الدخول بالبريد أو رقم الهاتف" },
+      });
       return;
     }
     await refreshAccount(data.session);
-    navigate("/home");
+    navigate("/home", { replace: true });
   }
 
   return (
@@ -79,7 +86,7 @@ export default function SignUp() {
           required
         />
         <TextField
-          label="رقم الهاتف (اختياري)"
+          label="رقم الهاتف"
           name="phone"
           type="tel"
           inputMode="tel"
@@ -88,21 +95,28 @@ export default function SignUp() {
           placeholder="01xxxxxxxxx"
           value={form.phone}
           onChange={(e) => update("phone", e.target.value)}
+          required
         />
         <TextField
           label="كلمة السر"
+          name="password"
           type="password"
+          autoComplete="new-password"
           placeholder="ادخل كلمة السر"
           value={form.password}
           onChange={(e) => update("password", e.target.value)}
+          minLength={6}
           required
         />
         <TextField
           label="تأكيد كلمة السر"
+          name="confirmPassword"
           type="password"
+          autoComplete="new-password"
           placeholder="أعد كتابة كلمة السر"
           value={form.confirmPassword}
           onChange={(e) => update("confirmPassword", e.target.value)}
+          minLength={6}
           required
         />
         {error && <p className="text-red-500 text-[13px]">{error}</p>}
@@ -113,7 +127,10 @@ export default function SignUp() {
           بالضغط على "إنشاء حساب" أنت توافق على شروط الاستخدام وسياسة الخصوصية
         </p>
 
-        <PrimaryButton type="submit" disabled={loading}>
+        <PrimaryButton
+          type="submit"
+          disabled={loading || !form.fullName.trim() || !form.email.trim() || !form.phone.trim() || !form.password || !form.confirmPassword}
+        >
           {loading ? "جاري الإنشاء..." : "إنشاء حساب"}
         </PrimaryButton>
 

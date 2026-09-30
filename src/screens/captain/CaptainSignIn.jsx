@@ -1,20 +1,23 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { PrimaryButton, TextField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "../../lib/supabase";
 
 export default function CaptainSignIn() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signInWithEmail, refreshAccount } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState(location.state?.notice || "");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setNotice("");
     setLoading(true);
     const { data, error: authError } = await signInWithEmail(email, password);
     if (authError) {
@@ -50,30 +53,33 @@ export default function CaptainSignIn() {
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4 flex-1 flex flex-col">
         <TextField
-          label="البريد الإلكتروني"
+          label="البريد الإلكتروني أو رقم الهاتف"
           name="email"
-          type="email"
+          type="text"
           inputMode="email"
-          autoComplete="email"
+          autoComplete="username"
           dir="ltr"
-          placeholder="captain@example.com"
+          placeholder="captain@example.com أو 01xxxxxxxxx"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
         />
         <TextField
           label="كلمة السر"
+          name="password"
           type="password"
+          autoComplete="current-password"
           placeholder="ادخل كلمة السر"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        {error && <p className="text-red-500 text-[13px]">{error}</p>}
+        {notice ? <p className="text-brand-600 text-[13px]">{notice}</p> : null}
+        {error ? <p className="text-red-500 text-[13px]">{error}</p> : null}
 
         <div className="flex-1" />
 
-        <PrimaryButton type="submit" disabled={loading}>
+        <PrimaryButton type="submit" disabled={loading || !email.trim() || !password}>
           {loading ? "جاري الدخول..." : "دخول الكابتن"}
         </PrimaryButton>
 

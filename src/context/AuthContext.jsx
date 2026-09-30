@@ -114,20 +114,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signInWithEmail(email, password) {
-    const identity = resolveEmailAndPhone(email, "");
+    const identity = resolveLoginIdentity(email);
     if (!identity.email) {
-      return { data: { user: null, session: null }, error: { message: "أدخل بريدًا إلكترونيًا صحيحًا" } };
+      return { data: { user: null, session: null }, error: { message: "أدخل بريدًا إلكترونيًا أو رقم هاتف صحيح" } };
     }
-    return supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: identity.email,
       password,
     });
+    return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
   }
 
   async function signUpWithEmail({ fullName, email, phone, password }) {
     const identity = resolveEmailAndPhone(email, phone);
     if (!identity.email) {
-      return { data: { user: null, session: null }, error: { message: "أدخل بريدًا إلكترونيًا صحيحًا في خانة الإيميل" } };
+      return { data: { user: null, session: null }, error: { message: "أدخل بريدًا إلكترونيًا صحيحًا أو رقم هاتف" } };
     }
     const { data, error } = await supabase.auth.signUp({
       email: identity.email,
@@ -142,7 +143,7 @@ export function AuthProvider({ children }) {
         role: "rider",
       });
     }
-    return { data, error };
+    return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
   }
 
   async function signUpCaptain({
@@ -191,25 +192,36 @@ export function AuthProvider({ children }) {
         { onConflict: "user_id" }
       );
     }
-    return { data, error };
+    return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
   }
 
   async function sendResetCode(email) {
-    return supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
+    const identity = resolveLoginIdentity(email);
+    if (!identity.email) {
+      return { data: null, error: { message: "أدخل بريدًا إلكترونيًا أو رقم هاتف صحيح" } };
+    }
+    const { data, error } = await supabase.auth.resetPasswordForEmail(identity.email, {
       redirectTo: `${window.location.origin}/create-new-password`,
     });
+    return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
   }
 
   async function verifyResetCode(email, code) {
-    return supabase.auth.verifyOtp({
-      email: normalizeEmail(email),
+    const identity = resolveLoginIdentity(email);
+    if (!identity.email) {
+      return { data: null, error: { message: "أدخل بريدًا إلكترونيًا أو رقم هاتف صحيح" } };
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: identity.email,
       token: code,
       type: "recovery",
     });
+    return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
   }
 
   async function updatePassword(newPassword) {
-    return supabase.auth.updateUser({ password: newPassword });
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
   }
 
   async function signOut() {
@@ -259,13 +271,6 @@ export function AuthProvider({ children }) {
     return hydrateAccount(nextSession);
   }
 
-  async function signInWithOAuth(provider) {
-    return supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: `${window.location.origin}/home` },
-    });
-  }
-
   const value = {
     session,
     user: session?.user ?? null,
@@ -277,7 +282,6 @@ export function AuthProvider({ children }) {
     signInWithEmail,
     signUpWithEmail,
     signUpCaptain,
-    signInWithOAuth,
     sendResetCode,
     verifyResetCode,
     updatePassword,
@@ -309,6 +313,30 @@ function normalizePhone(value) {
   return digits;
 }
 
+function phoneAuthEmail(phone) {
+  const digits = normalizePhone(phone);
+  if (!digits) return "";
+  return `${digits}@phone.sahil-drive.app`;
+}
+
+function resolveLoginIdentity(value) {
+  const raw = String(value || "").trim();
+  if (looksLikeEmail(raw)) return { email: normalizeEmail(raw), phone: null };
+  const phone = normalizePhone(raw);
+  if (phone) return { email: phoneAuthEmail(phone), phone };
+  return { email: "", phone: null };
+}
+
+function authErrorMessage(error) {
+  const text = String(error?.message || "").toLowerCase();
+  if (text.includes("invalid login")) return "البريد الإلكتروني أو كلمة السر غير صحيحة";
+  if (text.includes("email not confirmed")) return "أكد بريدك الإلكتروني ثم سجّل الدخول";
+  if (text.includes("already registered") || text.includes("user already")) return "هذا الحساب مسجّل بالفعل، سجّل الدخول";
+  if (text.includes("password")) return "كلمة السر غير صالحة";
+  if (text.includes("rate limit") || text.includes("too many")) return "محاولات كثيرة، انتظر قليلاً ثم أعد المحاولة";
+  return error?.message || "تعذر إتمام العملية، حاول مرة أخرى";
+}
+
 export function resolveEmailAndPhone(email, phone) {
   const rawEmail = String(email || "").trim();
   const rawPhone = String(phone || "").trim();
@@ -327,5 +355,7 @@ export function resolveEmailAndPhone(email, phone) {
   if (looksLikeEmail(rawPhone)) {
     return { email: normalizeEmail(rawPhone), phone: null };
   }
-  return { email: "", phone: normalizePhone(rawPhone) };
+  const phoneDigits = normalizePhone(rawPhone || rawEmail);
+  if (phoneDigits) return { email: phoneAuthEmail(phoneDigits), phone: phoneDigits };
+  return { email: "", phone: phoneDigits };
 }

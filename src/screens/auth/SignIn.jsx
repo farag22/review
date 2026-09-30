@@ -1,65 +1,70 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { PrimaryButton, GhostButton, TextField } from "../../components/ui";
+import { useLocation, useNavigate } from "react-router-dom";
+import { PrimaryButton, TextField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { accountHomePath } from "../../lib/session";
 
 export default function SignIn() {
   const navigate = useNavigate();
-  const { signInWithEmail, signInWithOAuth, refreshAccount } = useAuth();
+  const location = useLocation();
+  const { signInWithEmail, refreshAccount } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState(location.state?.notice || "");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setNotice("");
     setLoading(true);
-    const { data, error } = await signInWithEmail(email, password);
-    if (error) {
+    const { data, error: authError } = await signInWithEmail(email, password);
+    if (authError) {
       setLoading(false);
-      setError("البريد الإلكتروني أو كلمة السر غير صحيحة");
+      setError(authError.message || "البريد الإلكتروني أو كلمة السر غير صحيحة");
       return;
     }
-    const type = await refreshAccount(data?.session);
+    if (!data?.session) {
+      setLoading(false);
+      setError("تعذر استعادة الجلسة. حاول مرة أخرى");
+      return;
+    }
+    const type = await refreshAccount(data.session);
     setLoading(false);
-    navigate(accountHomePath(type));
-  }
-
-  async function handleOAuth(provider) {
-    setError("");
-    const { error } = await signInWithOAuth(provider);
-    if (error) setError(error.message || "تعذر تسجيل الدخول بهذا الحساب");
+    navigate(accountHomePath(type), { replace: true });
   }
 
   return (
     <div className="flex-1 flex flex-col px-6 pt-10">
       <h1 className="text-2xl font-extrabold">تسجيل الدخول</h1>
-      <p className="text-ink/55 text-[14px] mt-1">أهلاً بعودتك، سجّل دخولك لتطلب رحلتك</p>
+      <p className="text-ink/55 text-[14px] mt-1">أهلاً بعودتك، سجّل دخولك بالبريد أو رقم الهاتف</p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4 flex-1 flex flex-col">
         <TextField
-          label="البريد الإلكتروني"
+          label="البريد الإلكتروني أو رقم الهاتف"
           name="email"
-          type="email"
+          type="text"
           inputMode="email"
-          autoComplete="email"
+          autoComplete="username"
           dir="ltr"
-          placeholder="name@example.com"
+          placeholder="name@example.com أو 01xxxxxxxxx"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
         />
         <TextField
           label="كلمة السر"
+          name="password"
           type="password"
+          autoComplete="current-password"
           placeholder="ادخل كلمة السر"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        {error && <p className="text-red-500 text-[13px]">{error}</p>}
+        {notice ? <p className="text-brand-600 text-[13px]">{notice}</p> : null}
+        {error ? <p className="text-red-500 text-[13px]">{error}</p> : null}
 
         <button
           type="button"
@@ -71,19 +76,9 @@ export default function SignIn() {
 
         <div className="flex-1" />
 
-        <PrimaryButton type="submit" disabled={loading}>
+        <PrimaryButton type="submit" disabled={loading || !email.trim() || !password}>
           {loading ? "جاري الدخول..." : "تسجيل الدخول"}
         </PrimaryButton>
-
-        <div className="flex items-center gap-3 py-2">
-          <div className="flex-1 h-px bg-black/10" />
-          <span className="text-ink/40 text-[12px]">أو الدخول بواسطة</span>
-          <div className="flex-1 h-px bg-black/10" />
-        </div>
-
-        <GhostButton type="button" onClick={() => handleOAuth("google")}>Google</GhostButton>
-        <GhostButton type="button" onClick={() => handleOAuth("facebook")}>Facebook</GhostButton>
-        <GhostButton type="button" onClick={() => handleOAuth("apple")}>Apple</GhostButton>
 
         <p className="text-center text-[13px] text-ink/55 pb-2">
           ليس لديك حساب؟{" "}

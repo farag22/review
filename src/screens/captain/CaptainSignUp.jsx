@@ -67,11 +67,14 @@ export default function CaptainSignUp() {
       return;
     }
     if (!data?.session) {
-      setError("تم إنشاء الحساب. راجع بريدك لتأكيد الإيميل ثم سجّل الدخول");
+      navigate("/captain/signin", {
+        replace: true,
+        state: { notice: "تم إنشاء الحساب. سجّل الدخول بالبريد أو رقم الهاتف" },
+      });
       return;
     }
     await refreshAccount(data.session);
-    navigate("/captain/dashboard");
+    navigate("/captain/dashboard", { replace: true });
   }
 
   return (
@@ -144,18 +147,24 @@ export default function CaptainSignUp() {
         </label>
         <TextField
           label="كلمة السر"
+          name="password"
           type="password"
+          autoComplete="new-password"
           placeholder="ادخل كلمة السر"
           value={form.password}
           onChange={(e) => update("password", e.target.value)}
+          minLength={6}
           required
         />
         <TextField
           label="تأكيد كلمة السر"
+          name="confirmPassword"
           type="password"
+          autoComplete="new-password"
           placeholder="أعد كتابة كلمة السر"
           value={form.confirmPassword}
           onChange={(e) => update("confirmPassword", e.target.value)}
+          minLength={6}
           required
         />
         {error && <p className="text-red-500 text-[13px]">{error}</p>}
