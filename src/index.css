@@ -99,6 +99,7 @@ input:focus, textarea:focus, select:focus {
   width: 100%;
   height: 100%;
   font-family: "Cairo", system-ui, sans-serif;
+  background: #d7e4dc;
 }
 
 .sd-marker {
@@ -110,4 +111,86 @@ input:focus, textarea:focus, select:focus {
 .leaflet-top,
 .leaflet-bottom {
   z-index: 1;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16) !important;
+  overflow: hidden;
+  border-radius: 14px !important;
+}
+
+.leaflet-control-zoom a {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  color: #0d1f18 !important;
+  border: none !important;
+}
+
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.leaflet-bar a:first-child,
+.leaflet-bar a:last-child {
+  border-radius: 0 !important;
+}
+
+.sd-user-dot {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+
+.sd-user-dot-core {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.sd-user-dot-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.28);
+  animation: sd-pulse 1.8s ease-out infinite;
+}
+
+.sd-ride-pin {
+  min-width: 54px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #059669;
+  color: #fff;
+  font: 800 11px Cairo, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(5, 150, 105, 0.35);
+  border: 2px solid #fff;
+}
+
+.sd-map-chip {
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  font: 800 12px Cairo, sans-serif;
+  padding: 6px 12px;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.25);
+  white-space: nowrap;
+}
+
+.sd-gps-btn {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #059669;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.18);
+  background: #34d399;
 }

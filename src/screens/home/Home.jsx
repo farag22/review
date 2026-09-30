@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { SearchIcon, HomeIcon, WorkIcon, PinIcon } from "../../components/Icons";
+import MapView from "../../components/MapView";
 import { useAuth } from "../../context/AuthContext";
 import { useRide } from "../../context/RideContext";
 
@@ -43,9 +44,19 @@ export default function Home() {
         </button>
       </div>
 
+      <div className="px-5 mt-4">
+        <MapView
+          height={210}
+          userLocation={pickup}
+          showAccuracy
+          showRecenter
+          follow
+        />
+      </div>
+
       <button
         onClick={() => navigate("/set-destination")}
-        className="mx-5 mt-5 h-14 rounded-2xl bg-white shadow-card px-4 flex items-center gap-3 text-ink/45"
+        className="mx-5 mt-4 h-14 rounded-2xl bg-white shadow-card px-4 flex items-center gap-3 text-ink/45"
       >
         <SearchIcon />
         <span className="text-[14px]">إلى أين تذهب؟</span>

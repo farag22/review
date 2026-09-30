@@ -97,7 +97,11 @@ export default function CaptainActiveRide() {
           pickup={pickup}
           destination={destination}
           driver={location}
+          userLocation={location}
           path={route?.path}
+          routeInfo={route}
+          showRecenter
+          showAccuracy
         />
       </div>
 

@@ -44,6 +44,8 @@ export default function ChooseRide() {
           pickup={pickup}
           destination={destination}
           path={route?.path}
+          routeInfo={route}
+          showRecenter
           fitPadding={{ paddingTopLeft: [36, 92], paddingBottomRight: [36, 390] }}
         />
       </div>

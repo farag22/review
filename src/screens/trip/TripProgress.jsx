@@ -125,7 +125,10 @@ export default function TripProgress() {
           pickup={mapPickup}
           destination={mapDestination}
           driver={driver}
+          userLocation={pickup}
           path={route?.path}
+          routeInfo={route}
+          showRecenter
         />
       </div>
 

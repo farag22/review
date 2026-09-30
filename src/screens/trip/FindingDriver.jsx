@@ -73,7 +73,7 @@ export default function FindingDriver() {
   return (
     <div className="ride-live">
       <div className="ride-live-map">
-        <MapView fill height="100%" pickup={mapPickup} destination={mapDestination}>
+        <MapView fill height="100%" pickup={mapPickup} destination={mapDestination} userLocation={pickup} showRecenter>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <span className="w-4 h-4 rounded-full bg-brand-600 animate-ping absolute" />
             <span className="w-4 h-4 rounded-full bg-brand-600" />

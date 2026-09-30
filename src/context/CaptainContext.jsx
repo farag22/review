@@ -66,11 +66,23 @@ export function CaptainProvider({ children }) {
     if (!driver.is_online && !activeRide) return undefined;
     const stop = watchPosition(
       async (coords) => {
-        setLocation(coords);
         const prev = lastGpsRef.current;
+        let heading = coords.heading;
+        if (!Number.isFinite(heading) && prev?.lat != null) {
+          const dLng = coords.lng - prev.lng;
+          const y = Math.sin((dLng * Math.PI) / 180) * Math.cos((coords.lat * Math.PI) / 180);
+          const x =
+            Math.cos((prev.lat * Math.PI) / 180) * Math.sin((coords.lat * Math.PI) / 180) -
+            Math.sin((prev.lat * Math.PI) / 180) *
+              Math.cos((coords.lat * Math.PI) / 180) *
+              Math.cos((dLng * Math.PI) / 180);
+          heading = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+        }
+        const next = { ...coords, heading };
+        setLocation(next);
         const moved = !prev || haversineKm(prev, coords) >= 0.02;
         if (!moved) return;
-        lastGpsRef.current = coords;
+        lastGpsRef.current = next;
         await supabase
           .from("drivers")
           .update({ lat: coords.lat, lng: coords.lng })

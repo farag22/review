@@ -298,6 +298,7 @@ export function getCurrentPosition({ timeout = 6000, maximumAge = 60000 } = {}) 
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
+          heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
         });
       },
       () => {
@@ -321,6 +322,7 @@ export function watchPosition(onOk, onErr) {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
         accuracy: pos.coords.accuracy,
+        heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
       });
     },
     (err) => {

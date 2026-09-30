@@ -52,18 +52,19 @@ export function RideProvider({ children }) {
       if (isFallback) {
         setGpsReady(false);
         setLocationError("");
-        setPickup((prev) => (prev?.manual ? prev : { ...DEFAULT_LOCATION }));
+        setPickup((prev) => (prev?.manual || (prev?.lat && !prev.fallback) ? prev : { ...DEFAULT_LOCATION }));
         return;
       }
       setGpsReady(true);
       setLocationError("");
       setPickup((prev) => {
-        if (prev?.manual) return { ...prev, accuracy: coords.accuracy };
+        if (prev?.manual) return { ...prev, accuracy: coords.accuracy, heading: coords.heading };
         return {
           ...prev,
           lat: coords.lat,
           lng: coords.lng,
           accuracy: coords.accuracy,
+          heading: coords.heading,
           label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "موقعك الحالي",
         };
       });

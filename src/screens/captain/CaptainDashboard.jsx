@@ -106,7 +106,25 @@ export default function CaptainDashboard() {
       </div>
 
       <div className="px-5 mt-4">
-        <MapView height={220} userLocation={location} />
+        <MapView
+          height={260}
+          driver={location}
+          userLocation={location}
+          follow={online}
+          showAccuracy
+          showRecenter
+          ridePins={pendingRides.map((ride) => ({
+            id: ride.id,
+            lat: ride.pickup_lat,
+            lng: ride.pickup_lng,
+            label: formatEgp(ride.fare),
+            ride,
+          }))}
+          onRidePinClick={(pin) => {
+            const el = document.getElementById(`pending-ride-${pin?.id}`);
+            el?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+        />
       </div>
 
       {activeRide && (
@@ -156,7 +174,7 @@ export default function CaptainDashboard() {
                 ? haversineKm(location, { lat: ride.pickup_lat, lng: ride.pickup_lng })
                 : null;
             return (
-              <div key={ride.id} className="rounded-2xl bg-white shadow-card p-4 space-y-3">
+              <div id={`pending-ride-${ride.id}`} key={ride.id} className="rounded-2xl bg-white shadow-card p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-[14px] truncate">

@@ -1,17 +1,20 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ScreenHeader, PrimaryButton, Chip } from "../../components/ui";
 import { PinIcon, SearchIcon, ClockIcon, PlusIcon } from "../../components/Icons";
+import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
-import { LOCAL_PLACES, searchLocalPlaces, searchPlaces } from "../../lib/geo";
+import { LOCAL_PLACES, formatDistance, reverseGeocode, searchLocalPlaces, searchPlaces } from "../../lib/geo";
 
 export default function SetDestination() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { pickup, destination, setDestination, stops, savedPlaces, savePlace } = useRide();
+  const { pickup, setPickup, destination, setDestination, stops, savedPlaces, savePlace, route } = useRide();
   const [query, setQuery] = useState(destination?.label || "");
   const [tab, setTab] = useState(location.state?.placeLabel || "fav");
   const [results, setResults] = useState(LOCAL_PLACES.slice(0, 8));
+  const [mode, setMode] = useState("dropoff");
+  const [pinBusy, setPinBusy] = useState(false);
 
   useEffect(() => {
     const q = query.trim();
@@ -46,9 +49,26 @@ export default function SetDestination() {
     };
   }, [query, pickup]);
 
+  async function applyMapPoint(coords, kind) {
+    setPinBusy(true);
+    try {
+      const place = await reverseGeocode(coords.lat, coords.lng);
+      const next = { ...place, lat: coords.lat, lng: coords.lng, manual: true };
+      if (kind === "pickup") {
+        setPickup(next);
+        setMode("dropoff");
+      } else {
+        setDestination(next);
+        setQuery(next.label || "");
+      }
+    } finally {
+      setPinBusy(false);
+    }
+  }
+
   function pick(place) {
-    setDestination(place);
-    navigate("/choose-ride");
+    setDestination({ ...place, manual: true });
+    setQuery(place.label || "");
   }
 
   async function pickAndSave(place, label) {
@@ -62,10 +82,54 @@ export default function SetDestination() {
     return true;
   });
 
+  const tripHint = useMemo(() => {
+    if (!route) return pinBusy ? "جاري تحديد الموقع..." : "اضغط على الخريطة لتحديد النقطة";
+    return `${formatDistance(route.distanceKm)} · ${route.durationMin} د`;
+  }, [route, pinBusy]);
+
   return (
-    <div className="flex-1 flex flex-col">
-      <ScreenHeader title="تحديد الوجهة" />
-      <div className="px-5 space-y-3">
+    <div className="flex-1 flex flex-col min-h-0">
+      <ScreenHeader title="تحديد الوجهة" subtitle={tripHint} />
+
+      <div className="px-5">
+        <MapView
+          height={250}
+          pickup={pickup}
+          destination={destination}
+          userLocation={pickup?.manual ? null : pickup}
+          path={route?.path}
+          showAccuracy
+          showRecenter
+          interactive
+          routeInfo={route}
+          onMapClick={(pt) => applyMapPoint(pt, mode)}
+          onPickupDrag={(pt) => applyMapPoint(pt, "pickup")}
+          onDestinationDrag={(pt) => applyMapPoint(pt, "dropoff")}
+        />
+      </div>
+
+      <div className="px-5 mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMode("pickup")}
+          className={`flex-1 h-10 rounded-xl text-[12px] font-bold border ${
+            mode === "pickup" ? "bg-emerald-600 text-white border-emerald-500" : "bg-white text-ink border-black/10"
+          }`}
+        >
+          تحديد الانطلاق
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("dropoff")}
+          className={`flex-1 h-10 rounded-xl text-[12px] font-bold border ${
+            mode === "dropoff" ? "bg-emerald-600 text-white border-emerald-500" : "bg-white text-ink border-black/10"
+          }`}
+        >
+          تحديد الوصول
+        </button>
+      </div>
+
+      <div className="px-5 mt-3 space-y-3">
         <div className="h-12 rounded-xl bg-white border border-black/10 px-3 flex items-center gap-2">
           <PinIcon size={14} color="#0b7350" />
           <span className="text-[13px] text-ink/60 truncate">{pickup?.label || "بنها، القليوبية"}</span>
@@ -91,13 +155,13 @@ export default function SetDestination() {
         </button>
       </div>
 
-      <div className="px-5 mt-5 flex gap-2">
+      <div className="px-5 mt-4 flex gap-2">
         <Chip active={tab === "home"} onClick={() => setTab("home")}>المنزل</Chip>
         <Chip active={tab === "work"} onClick={() => setTab("work")}>العمل</Chip>
         <Chip active={tab === "fav"} onClick={() => setTab("fav")}>المفضلة</Chip>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 mt-4 space-y-1">
+      <div className="flex-1 overflow-y-auto px-5 mt-3 space-y-1">
         {results.map((p) => (
           <button
             key={`${p.lat}-${p.lng}-${p.label}`}
