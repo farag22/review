@@ -10,7 +10,7 @@ export function captainDebt(driver) {
 
 export function isCaptainLocked(driver) {
   if (!driver) return false;
-  if (driver.locked === true) return true;
+  if (driver.locked === true || driver.locked === "true") return true;
   return captainDebt(driver) >= CAPTAIN_DEBT_LIMIT;
 }
 

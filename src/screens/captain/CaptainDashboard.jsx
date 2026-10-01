@@ -119,52 +119,49 @@ export default function CaptainDashboard() {
         </button>
       </div>
 
-      {locked ? (
-        <div className="px-5 mt-4">
-          <div className="rounded-2xl bg-red-50 border border-red-200 p-4 space-y-2">
-            <p className="font-extrabold text-red-600 text-[14px]">الحساب مقفول — مديونية {formatEgp(debt)}</p>
-            <p className="text-[12px] text-red-500">
-              تجاوزت الحد الأقصى {formatEgp(CAPTAIN_DEBT_LIMIT)}. سدّد عبر فودافون كاش لفتح الحساب.
-            </p>
-            <div className="h-2 rounded-full bg-red-100 overflow-hidden">
-              <div className="h-full bg-red-500" style={{ width: `${debtRatio}%` }} />
-            </div>
-            {pendingDebtRequest ? (
-              <p className="text-[12px] text-amber-600 font-bold">
-                طلب سداد {formatEgp(pendingDebtRequest.amount)} قيد مراجعة الإدارة
-              </p>
-            ) : (
-              <button
-                onClick={() => navigate("/captain/debt")}
-                className="w-full h-11 rounded-xl bg-red-500 text-white font-bold text-[13px]"
-              >
-                سداد المديونية عبر فودافون كاش
-              </button>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="px-5 mt-4">
-          <div className="rounded-2xl bg-white shadow-card p-4 flex items-center justify-between">
+      <div className="px-5 mt-4">
+        <div className={`rounded-2xl p-4 ${locked ? "bg-red-50 border border-red-200" : "bg-white shadow-card"}`}>
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-[12px] text-ink/50">مديونية عمولات النقد</p>
-              <p className="text-[18px] font-extrabold text-ink mt-0.5">{formatEgp(debt)}</p>
+              <p className={`text-[12px] ${locked ? "text-red-500" : "text-ink/50"}`}>مديونية عمولات النقد</p>
+              <p className={`text-[18px] font-extrabold mt-0.5 ${locked ? "text-red-600" : "text-ink"}`}>
+                {formatEgp(debt)}
+              </p>
             </div>
             <div className="text-left">
               <p className="text-[11px] text-ink/40">الحد الأقصى</p>
               <p className="text-[13px] font-bold text-ink/70">{formatEgp(CAPTAIN_DEBT_LIMIT)}</p>
             </div>
           </div>
-          {debt > 0 && (
-            <button
-              onClick={() => navigate("/captain/debt")}
-              className="w-full h-11 mt-2 rounded-xl border border-brand-500 text-brand-700 font-bold text-[13px]"
-            >
-              {pendingDebtRequest ? `طلب سداد ${formatEgp(pendingDebtRequest.amount)} قيد المراجعة` : "سداد المديونية"}
-            </button>
+          <div className={`mt-3 h-2 rounded-full overflow-hidden ${locked ? "bg-red-100" : "bg-sand"}`}>
+            <div
+              className={`h-full ${locked ? "bg-red-500" : "bg-brand-500"}`}
+              style={{ width: `${debtRatio}%` }}
+            />
+          </div>
+          {locked && (
+            <p className="text-[12px] text-red-500 mt-2">
+              تم قفل الحساب تلقائياً بسبب تجاوز الحد. سدّد عبر فودافون كاش لفتح الحساب.
+            </p>
           )}
         </div>
-      )}
+        {(locked || debt > 0) && (
+          pendingDebtRequest ? (
+            <p className="text-[12px] text-amber-600 font-bold mt-2">
+              طلب سداد {formatEgp(pendingDebtRequest.amount)} قيد مراجعة الإدارة
+            </p>
+          ) : (
+            <button
+              onClick={() => navigate("/captain/debt")}
+              className={`w-full h-11 mt-2 rounded-xl font-bold text-[13px] ${
+                locked ? "bg-red-500 text-white" : "border border-brand-500 text-brand-700"
+              }`}
+            >
+              سداد المديونية عبر فودافون كاش
+            </button>
+          )
+        )}
+      </div>
 
       <div className="px-5 mt-4">
         <button

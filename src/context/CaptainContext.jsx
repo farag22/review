@@ -29,6 +29,26 @@ const CaptainContext = createContext(null);
 
 const ACTIVE_STATUSES = ["accepted", "arrived", "in_progress"];
 
+const DRIVER_FIELDS =
+  "id, user_id, full_name, phone, car_model, plate_number, rating, is_online, ride_type, lat, lng, debt, locked, locked_at, created_at";
+
+async function fetchDriverRow(userId) {
+  if (!userId) return { data: null, error: null };
+  let { data, error } = await supabase
+    .from("drivers")
+    .select(DRIVER_FIELDS)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error && /debt|locked/i.test(error.message || "")) {
+    ({ data, error } = await supabase
+      .from("drivers")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle());
+  }
+  return { data, error };
+}
+
 export function CaptainProvider({ children }) {
   const { user } = useAuth();
   const [driver, setDriver] = useState(null);
@@ -79,13 +99,17 @@ export function CaptainProvider({ children }) {
     }
 
     let cancelled = false;
-    async function loadDriver(initial = false) {
+    async function loadDriver(initial = false, override = null) {
       if (initial) setLoading(true);
-      const { data, error: loadError } = await supabase
-        .from("drivers")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      if (override) {
+        setDriver(override);
+        if (override.lat != null && override.lng != null) {
+          setLocation({ lat: override.lat, lng: override.lng });
+        }
+        if (initial) setLoading(false);
+        return;
+      }
+      const { data, error: loadError } = await fetchDriverRow(user.id);
       if (cancelled) return;
       if (loadError) setError(loadError.message);
       setDriver(data || null);
@@ -102,7 +126,17 @@ export function CaptainProvider({ children }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "drivers", filter: `user_id=eq.${user.id}` },
-        () => loadDriver(false)
+        (payload) => {
+          if (payload?.eventType === "DELETE") {
+            setDriver(null);
+            return;
+          }
+          if (payload?.new) {
+            setDriver((prev) => (prev ? { ...prev, ...payload.new } : payload.new));
+          } else {
+            loadDriver(false);
+          }
+        }
       )
       .subscribe();
     return () => {
@@ -111,6 +145,25 @@ export function CaptainProvider({ children }) {
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    const current = driver;
+    if (!current?.id) return undefined;
+    if (!isCaptainLocked(current) || !current.is_online) return undefined;
+
+    let cancelled = false;
+    setDriver((prev) => (prev ? { ...prev, is_online: false, locked: true } : prev));
+    supabase
+      .from("drivers")
+      .update({ is_online: false })
+      .eq("id", current.id)
+      .then(({ error: offlineError }) => {
+        if (offlineError && !cancelled) setError(offlineError.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [driver?.id, driver?.debt, driver?.locked, driver?.is_online]);
 
   async function refreshLocation() {
     try {
@@ -309,7 +362,7 @@ export function CaptainProvider({ children }) {
 
   async function toggleOnline() {
     setError("");
-    if (!driver?.is_online && isCaptainLocked(driver)) {
+    if (isCaptainLocked(driver)) {
       setError(CAPTAIN_LOCKED_MSG);
       return;
     }
@@ -408,12 +461,8 @@ export function CaptainProvider({ children }) {
   }
 
   async function loadDriverDebt() {
-    if (!driverRef.current?.id) return null;
-    const { data } = await supabase
-      .from("drivers")
-      .select("*")
-      .eq("id", driverRef.current.id)
-      .maybeSingle();
+    if (!driverRef.current?.id || !user?.id) return null;
+    const { data } = await fetchDriverRow(user.id);
     if (data) {
       setDriver(data);
       return data;

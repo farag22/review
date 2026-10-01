@@ -317,3 +317,6 @@ $$;
 grant execute on function public.sync_captain_lock(uuid) to authenticated;
 grant execute on function public.apply_captain_debt(uuid, numeric) to authenticated;
 grant execute on function public.review_wallet_request(uuid, boolean, text) to authenticated;
+
+-- إعادة تحميل مخطط PostgREST حتى تظهر أعمدة debt / locked / kind فوراً
+notify pgrst, 'reload schema';
