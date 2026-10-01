@@ -152,7 +152,7 @@ export function CaptainProvider({ children }) {
     if (!isCaptainLocked(current) || !current.is_online) return undefined;
 
     let cancelled = false;
-    setDriver((prev) => (prev ? { ...prev, is_online: false, locked: true } : prev));
+    setDriver((prev) => (prev ? { ...prev, is_online: false } : prev));
     supabase
       .from("drivers")
       .update({ is_online: false })
