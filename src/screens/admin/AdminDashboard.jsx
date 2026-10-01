@@ -125,10 +125,17 @@ export default function AdminDashboard() {
 
   async function reviewTopup(request, approve) {
     setBusyId(request.id);
+    const isDebt = request.kind === "debt_pay";
     const { data, error: err } = await supabase.rpc("review_wallet_request", {
       p_request_id: request.id,
       p_approve: approve,
-      p_note: approve ? "تمت الموافقة وإضافة الرصيد" : "رفض طلب الشحن",
+      p_note: approve
+        ? isDebt
+          ? "تمت الموافقة وخصم المبلغ من المديونية"
+          : "تمت الموافقة وإضافة الرصيد"
+        : isDebt
+          ? "رفض طلب السداد"
+          : "رفض طلب الشحن",
     });
     setBusyId(null);
     if (err) {
@@ -137,6 +144,13 @@ export default function AdminDashboard() {
     }
     const updated = Array.isArray(data) ? data[0] : data;
     setTopups((list) => list.map((row) => (row.id === request.id ? { ...row, ...updated } : row)));
+    if (isDebt) {
+      const { data: driverRows } = await supabase
+        .from("drivers")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (driverRows) setDrivers(driverRows);
+    }
   }
 
   async function toggleDriver(driver) {
@@ -221,7 +235,16 @@ export default function AdminDashboard() {
             <div key={req.id} className="rounded-2xl bg-white shadow-card p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-bold text-[14px]">{riderName(req.user_id)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-[14px]">{riderName(req.user_id)}</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      req.kind === "debt_pay"
+                        ? "bg-red-50 text-red-600"
+                        : "bg-brand-50 text-brand-700"
+                    }`}>
+                      {req.kind === "debt_pay" ? "سداد مديونية" : "شحن رصيد"}
+                    </span>
+                  </div>
                   <p className="text-[12px] text-ink/50 mt-0.5" dir="ltr">{req.phone_number || "بدون رقم تحويل"}</p>
                 </div>
                 <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${

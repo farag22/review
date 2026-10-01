@@ -33,6 +33,7 @@ import CaptainSignIn from "./screens/captain/CaptainSignIn";
 import CaptainSignUp from "./screens/captain/CaptainSignUp";
 import CaptainDashboard from "./screens/captain/CaptainDashboard";
 import CaptainActiveRide from "./screens/captain/CaptainActiveRide";
+import CaptainDebt from "./screens/captain/CaptainDebt";
 
 import AdminSignIn from "./screens/admin/AdminSignIn";
 import AdminDashboard from "./screens/admin/AdminDashboard";
@@ -169,6 +170,7 @@ export default function App() {
                   <Routes>
                     <Route path="dashboard" element={<CaptainDashboard />} />
                     <Route path="ride" element={<CaptainActiveRide />} />
+                    <Route path="debt" element={<CaptainDebt />} />
                     <Route path="profile" element={<Profile />} />
                     <Route path="*" element={<Navigate to="/captain/dashboard" replace />} />
                   </Routes>

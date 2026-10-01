@@ -10,6 +10,7 @@ create table if not exists public.wallet_requests (
   phone_number text,
   receipt_image_url text,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  kind text not null default 'topup' check (kind in ('topup', 'debt_pay')),
   admin_note text,
   reviewed_by uuid references public.profiles(id),
   reviewed_at timestamptz,

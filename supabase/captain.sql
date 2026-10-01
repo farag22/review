@@ -105,6 +105,8 @@ as $$
     select 1 from public.drivers d
     where d.user_id = auth.uid()
       and d.is_online is true
+      and coalesce(d.locked, false) is not true
+      and coalesce(d.debt, 0) < 300
       and (d.ride_type is null or p_ride_type is null or d.ride_type = p_ride_type)
   );
 $$;

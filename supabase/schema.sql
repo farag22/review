@@ -49,11 +49,14 @@ create table if not exists public.wallet_requests (
   phone_number text,
   receipt_image_url text,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  kind text not null default 'topup' check (kind in ('topup', 'debt_pay')),
   admin_note text,
   reviewed_by uuid references public.profiles(id),
   reviewed_at timestamptz,
   created_at timestamptz default now()
 );
+
+alter table public.wallet_requests add column if not exists kind text not null default 'topup';
 
 create table if not exists public.payment_methods (
   id uuid primary key default gen_random_uuid(),
@@ -99,10 +102,16 @@ create table if not exists public.drivers (
   ride_type text references public.ride_types(id),
   lat double precision,
   lng double precision,
+  debt numeric(10,2) not null default 0,
+  locked boolean not null default false,
+  locked_at timestamptz,
   created_at timestamptz default now()
 );
 
 alter table public.drivers add column if not exists user_id uuid unique references auth.users(id) on delete set null;
+alter table public.drivers add column if not exists debt numeric(10,2) not null default 0;
+alter table public.drivers add column if not exists locked boolean not null default false;
+alter table public.drivers add column if not exists locked_at timestamptz;
 
 create table if not exists public.rides (
   id uuid primary key default gen_random_uuid(),
@@ -287,6 +296,8 @@ as $$
     select 1 from public.drivers d
     where d.user_id = auth.uid()
       and d.is_online is true
+      and coalesce(d.locked, false) is not true
+      and coalesce(d.debt, 0) < 300
       and (d.ride_type is null or p_ride_type is null or d.ride_type = p_ride_type)
   );
 $$;

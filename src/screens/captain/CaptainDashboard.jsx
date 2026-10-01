@@ -4,6 +4,7 @@ import MapView from "../../components/MapView";
 import { PrimaryButton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCaptain } from "../../context/CaptainContext";
+import { CAPTAIN_DEBT_LIMIT, CAPTAIN_LOCKED_MSG } from "../../lib/finance";
 import { formatDistance, formatEgp, haversineKm } from "../../lib/geo";
 
 const TYPE_LABELS = {
@@ -25,6 +26,9 @@ export default function CaptainDashboard() {
     activeRide,
     error,
     todayEarnings,
+    debt,
+    locked,
+    debtRequests,
     toggleOnline,
     acceptRide,
     refreshLocation,
@@ -33,6 +37,9 @@ export default function CaptainDashboard() {
   const [localError, setLocalError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const signingOutRef = useRef(false);
+
+  const pendingDebtRequest = debtRequests.find((r) => r.status === "pending");
+  const debtRatio = Math.min(100, Math.round((debt / CAPTAIN_DEBT_LIMIT) * 100));
 
   async function handleForceSignOut() {
     if (signingOutRef.current) return;
@@ -74,6 +81,10 @@ export default function CaptainDashboard() {
 
   async function handleAccept(ride) {
     setLocalError("");
+    if (locked) {
+      setLocalError(CAPTAIN_LOCKED_MSG);
+      return;
+    }
     setBusyId(ride.id);
     try {
       await acceptRide(ride);
@@ -108,21 +119,77 @@ export default function CaptainDashboard() {
         </button>
       </div>
 
+      {locked ? (
+        <div className="px-5 mt-4">
+          <div className="rounded-2xl bg-red-50 border border-red-200 p-4 space-y-2">
+            <p className="font-extrabold text-red-600 text-[14px]">الحساب مقفول — مديونية {formatEgp(debt)}</p>
+            <p className="text-[12px] text-red-500">
+              تجاوزت الحد الأقصى {formatEgp(CAPTAIN_DEBT_LIMIT)}. سدّد عبر فودافون كاش لفتح الحساب.
+            </p>
+            <div className="h-2 rounded-full bg-red-100 overflow-hidden">
+              <div className="h-full bg-red-500" style={{ width: `${debtRatio}%` }} />
+            </div>
+            {pendingDebtRequest ? (
+              <p className="text-[12px] text-amber-600 font-bold">
+                طلب سداد {formatEgp(pendingDebtRequest.amount)} قيد مراجعة الإدارة
+              </p>
+            ) : (
+              <button
+                onClick={() => navigate("/captain/debt")}
+                className="w-full h-11 rounded-xl bg-red-500 text-white font-bold text-[13px]"
+              >
+                سداد المديونية عبر فودافون كاش
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="px-5 mt-4">
+          <div className="rounded-2xl bg-white shadow-card p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[12px] text-ink/50">مديونية عمولات النقد</p>
+              <p className="text-[18px] font-extrabold text-ink mt-0.5">{formatEgp(debt)}</p>
+            </div>
+            <div className="text-left">
+              <p className="text-[11px] text-ink/40">الحد الأقصى</p>
+              <p className="text-[13px] font-bold text-ink/70">{formatEgp(CAPTAIN_DEBT_LIMIT)}</p>
+            </div>
+          </div>
+          {debt > 0 && (
+            <button
+              onClick={() => navigate("/captain/debt")}
+              className="w-full h-11 mt-2 rounded-xl border border-brand-500 text-brand-700 font-bold text-[13px]"
+            >
+              {pendingDebtRequest ? `طلب سداد ${formatEgp(pendingDebtRequest.amount)} قيد المراجعة` : "سداد المديونية"}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="px-5 mt-4">
         <button
           onClick={toggleOnline}
+          disabled={locked}
           className={`w-full h-14 rounded-2xl font-extrabold text-[15px] transition-colors ${
-            online
-              ? "bg-brand-600 text-white"
-              : "bg-white border border-black/10 text-ink"
+            locked
+              ? "bg-red-100 text-red-400"
+              : online
+                ? "bg-brand-600 text-white"
+                : "bg-white border border-black/10 text-ink"
           }`}
         >
-          {online ? "متصل — اضغط للتحويل لغير متصل" : "غير متصل — اضغط للاتصال"}
+          {locked
+            ? "الحساب مقفول — سدّد المديونية أولاً"
+            : online
+              ? "متصل — اضغط للتحويل لغير متصل"
+              : "غير متصل — اضغط للاتصال"}
         </button>
         <p className="text-[12px] text-ink/45 mt-2 text-center">
-          {online
-            ? `موقعك يُحدَّث على الخريطة · ${location?.lat?.toFixed(4)}, ${location?.lng?.toFixed(4)}`
-            : "اتصل لاستقبال الطلبات المطابقة لنوع مركبتك"}
+          {locked
+            ? `مديونية ${formatEgp(debt)} من ${formatEgp(CAPTAIN_DEBT_LIMIT)}`
+            : online
+              ? `موقعك يُحدَّث على الخريطة · ${location?.lat?.toFixed(4)}, ${location?.lng?.toFixed(4)}`
+              : "اتصل لاستقبال الطلبات المطابقة لنوع مركبتك"}
         </p>
       </div>
 
@@ -147,8 +214,8 @@ export default function CaptainDashboard() {
               <p className="font-bold mt-0.5">{formatEgp(todayEarnings.walletCredit)}</p>
             </div>
             <div className="rounded-xl bg-sand p-2.5">
-              <p className="text-ink/45">عمولة النقد المستحقة</p>
-              <p className="font-bold mt-0.5">{formatEgp(todayEarnings.cashCommissionDue)}</p>
+              <p className="text-ink/45">عمولة النقد (مديونية)</p>
+              <p className="font-bold mt-0.5">{formatEgp(debt || todayEarnings.cashCommissionDue)}</p>
             </div>
           </div>
         </div>

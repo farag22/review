@@ -2,11 +2,20 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, watchPosition } from "../lib/geo";
-import { WALLET_INSUFFICIENT_MSG, appCommission, captainNet, roundMoney } from "../lib/finance";
+import {
+  CAPTAIN_LOCKED_MSG,
+  WALLET_INSUFFICIENT_MSG,
+  appCommission,
+  captainDebt,
+  captainNet,
+  isCaptainLocked,
+  roundMoney,
+} from "../lib/finance";
 
 function mapCaptainError(error, fallback) {
   const msg = error?.message || "";
   if (/رصيد المحفظة غير كاف/.test(msg)) return WALLET_INSUFFICIENT_MSG;
+  if (/مديونية|مقفول|مغلق/.test(msg)) return CAPTAIN_LOCKED_MSG;
   return msg || fallback;
 }
 
@@ -31,6 +40,7 @@ export function CaptainProvider({ children }) {
   const [riderProfile, setRiderProfile] = useState(null);
   const [rideTypes, setRideTypes] = useState([]);
   const [error, setError] = useState("");
+  const [debtRequests, setDebtRequests] = useState([]);
   const [todayEarnings, setTodayEarnings] = useState({
     rides: 0,
     gross: 0,
@@ -51,6 +61,15 @@ export function CaptainProvider({ children }) {
       if (data?.length) setRideTypes(data);
     });
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setDebtRequests([]);
+      return undefined;
+    }
+    loadDebtRequests();
+    return undefined;
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -166,7 +185,7 @@ export function CaptainProvider({ children }) {
       .maybeSingle();
     setActiveRide(active || null);
 
-    if (!current.is_online) {
+    if (isCaptainLocked(current) || !current.is_online) {
       setPendingRides([]);
       await refreshTodayEarnings(current);
       return;
@@ -290,6 +309,10 @@ export function CaptainProvider({ children }) {
 
   async function toggleOnline() {
     setError("");
+    if (!driver?.is_online && isCaptainLocked(driver)) {
+      setError(CAPTAIN_LOCKED_MSG);
+      return;
+    }
     const next = !driver?.is_online;
     const fields = { is_online: next };
     if (next && location?.lat != null) {
@@ -305,6 +328,7 @@ export function CaptainProvider({ children }) {
 
   async function acceptRide(ride) {
     if (!driver?.id) throw new Error("لا يوجد حساب كابتن");
+    if (isCaptainLocked(driver)) throw new Error(CAPTAIN_LOCKED_MSG);
     if (!driver.is_online) throw new Error("اتصل أولاً لقبول الطلبات");
     const { data, error: acceptError } = await supabase
       .from("rides")
@@ -378,9 +402,60 @@ export function CaptainProvider({ children }) {
     if (updateError) throw new Error(mapCaptainError(updateError, "تعذر تحديث حالة الرحلة"));
     if (status === "completed") {
       setActiveRide(null);
-      await refreshTodayEarnings();
+      await Promise.all([loadDriverDebt(), refreshTodayEarnings()]);
     } else setActiveRide(data);
     return data;
+  }
+
+  async function loadDriverDebt() {
+    if (!driverRef.current?.id) return null;
+    const { data } = await supabase
+      .from("drivers")
+      .select("*")
+      .eq("id", driverRef.current.id)
+      .maybeSingle();
+    if (data) {
+      setDriver(data);
+      return data;
+    }
+    return null;
+  }
+
+  async function loadDebtRequests() {
+    if (!user?.id) {
+      setDebtRequests([]);
+      return [];
+    }
+    const { data } = await supabase
+      .from("wallet_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("kind", "debt_pay")
+      .order("created_at", { ascending: false })
+      .limit(8);
+    setDebtRequests(data || []);
+    return data || [];
+  }
+
+  async function submitDebtPayment({ amount, phoneNumber, receiptUrl }) {
+    if (!driver?.id) throw new Error("لا يوجد حساب كابتن");
+    const value = roundMoney(amount);
+    if (!Number.isFinite(value) || value <= 0) throw new Error("أدخل مبلغًا صحيحًا");
+    const { error: insertError } = await supabase.from("wallet_requests").insert({
+      user_id: user.id,
+      amount: value,
+      phone_number: phoneNumber,
+      receipt_image_url: receiptUrl || null,
+      kind: "debt_pay",
+      status: "pending",
+    });
+    if (insertError) {
+      if (/kind/i.test(insertError.message || "")) {
+        throw new Error("شغّل supabase/captain-debt.sql لتفعيل سداد المديونية");
+      }
+      throw insertError;
+    }
+    await loadDebtRequests();
   }
 
   const value = {
@@ -395,12 +470,18 @@ export function CaptainProvider({ children }) {
     error,
     setError,
     todayEarnings,
+    debt: captainDebt(driver),
+    locked: isCaptainLocked(driver),
+    debtRequests,
     refreshLocation,
     toggleOnline,
     acceptRide,
     updateActiveStatus,
     refreshPendingAndActive,
     refreshTodayEarnings,
+    loadDriverDebt,
+    loadDebtRequests,
+    submitDebtPayment,
   };
 
   return <CaptainContext.Provider value={value}>{children}</CaptainContext.Provider>;

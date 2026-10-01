@@ -51,9 +51,14 @@ export default function Profile() {
     () => [
       {
         id: "wallet",
-        label: "المحفظة",
+        label: accountType === "captain" ? "المديونية" : "المحفظة",
         icon: WalletIcon,
-        onClick: () => (accountType === "rider" ? navigate("/wallet") : setPanel(PANEL.walletHint)),
+        onClick: () =>
+          accountType === "rider"
+            ? navigate("/wallet")
+            : accountType === "captain"
+              ? navigate("/captain/debt")
+              : setPanel(PANEL.walletHint),
       },
       { id: "help", label: "المساعدة", icon: HelpIcon, onClick: () => setPanel(PANEL.help) },
       { id: "inbox", label: "صندوق الوارد", icon: InboxIcon, onClick: () => setPanel(PANEL.inbox) },
