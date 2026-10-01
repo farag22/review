@@ -500,7 +500,7 @@ export function CaptainProvider({ children }) {
     });
     if (insertError) {
       if (/kind/i.test(insertError.message || "")) {
-        throw new Error("شغّل supabase/captain-debt.sql لتفعيل سداد المديونية");
+        throw new Error("شغّل supabase/fix-settlement.sql لتفعيل سداد المديونية");
       }
       throw insertError;
     }

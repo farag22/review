@@ -25,12 +25,25 @@ npm run dev
 ## إعداد Supabase
 
 1. أنشئ مشروعًا على supabase.com.
-2. شغّل `supabase/schema.sql` في SQL Editor. ينشئ:
-   - `profiles`, `wallets`, `wallet_txns`, `rides`, `ride_stops`, `saved_places`
-   - `payment_methods`, `drivers` (مع `user_id` لربط حساب الكابتن), `ride_types`, `promo_codes`
-   - Trigger لبروفايل ومحفظة، وإنشاء صف سائق عند `role=captain`
-   - سياسات RLS للراكب والكابتن (قبول الرحلات المعلقة وتحديث حالتها)
-   - إن كان المشروع قديماً شغّل أيضاً `supabase/captain.sql`
+2. شغّل ملفات SQL التالية في SQL Editor بالترتيب التالي:
+
+   ```text
+   supabase/schema.sql            -- الجداول والسياسات الأساسية
+   supabase/captain.sql           -- إصلاحات مشاريع الكابتن القديمة
+   supabase/admin.sql             -- صلاحيات لوحة الإدارة
+   supabase/wallet-requests.sql   -- طلبات شحن المحفظة
+   supabase/captain-debt.sql      -- مديونية الكابتن والسداد
+   supabase/fix-settlement.sql    -- (أخيراً دائماً) الإصلاح الموحّد للتسوية والمديونية
+   ```
+
+   `supabase/fix-settlement.sql` قابل لإعادة التشغيل بأمان ويجب تشغيله بعد أي ملف آخر.
+   يوحّد دالة التسوية على منطق المديونية ويعالج الرحلات القديمة. تسوية الرحلات
+   تعتمد عليه، فلا تشغّل `schema.sql` أو `ride-settlement.sql` بعده بدل تشغيله.
+
+   `supabase/schema.sql` ينشئ: `profiles`, `wallets`, `wallet_txns`, `rides`,
+   `ride_stops`, `saved_places`, `payment_methods`, `drivers` (مع `user_id`)،
+   `ride_types`, `promo_codes`, وtrigger للبروفايل والمحفظة وإنشاء صف سائق عند `role=captain`.
+
 3. من Project Settings → API انسخ Project URL و anon public key إلى `.env.local`.
 4. Authentication → Providers: فعّل Email. اختياريًا Google / Facebook / Apple.
 5. Authentication → URL Configuration: أضف رابط التطبيق في Redirect URLs.

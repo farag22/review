@@ -139,7 +139,7 @@ export default function AdminDashboard() {
     });
     setBusyId(null);
     if (err) {
-      setError(err.message || "تعذر مراجعة طلب الشحن. شغّل supabase/wallet-requests.sql");
+      setError(err.message || "تعذر مراجعة الطلب. شغّل supabase/fix-settlement.sql");
       return;
     }
     const updated = Array.isArray(data) ? data[0] : data;

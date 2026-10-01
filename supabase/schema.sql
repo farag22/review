@@ -448,64 +448,8 @@ drop policy if exists "admins manage wallet requests" on public.wallet_requests;
 create policy "admins manage wallet requests" on public.wallet_requests
   for all using (public.is_admin()) with check (public.is_admin());
 
-create or replace function public.review_wallet_request(p_request_id uuid, p_approve boolean, p_note text default null)
-returns public.wallet_requests
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  req public.wallet_requests;
-begin
-  if not public.is_admin() then
-    raise exception 'غير مصرح: حساب الإدارة فقط';
-  end if;
-
-  select * into req
-  from public.wallet_requests
-  where id = p_request_id
-  for update;
-
-  if not found then
-    raise exception 'طلب الشحن غير موجود';
-  end if;
-
-  if req.status <> 'pending' then
-    raise exception 'تمت مراجعة هذا الطلب مسبقاً';
-  end if;
-
-  if p_approve then
-    insert into public.wallets (user_id, balance, updated_at)
-    values (req.user_id, req.amount, now())
-    on conflict (user_id) do update
-      set balance = public.wallets.balance + excluded.balance,
-          updated_at = now();
-
-    insert into public.wallet_txns (user_id, amount, kind, note)
-    values (req.user_id, req.amount, 'topup', coalesce(p_note, 'شحن بعد موافقة الإدارة'));
-
-    update public.wallet_requests
-    set status = 'approved',
-        admin_note = p_note,
-        reviewed_by = auth.uid(),
-        reviewed_at = now()
-    where id = p_request_id
-    returning * into req;
-  else
-    update public.wallet_requests
-    set status = 'rejected',
-        admin_note = p_note,
-        reviewed_by = auth.uid(),
-        reviewed_at = now()
-    where id = p_request_id
-    returning * into req;
-  end if;
-
-  return req;
-end;
-$$;
-
-grant execute on function public.review_wallet_request(uuid, boolean, text) to authenticated;
+-- ملاحظة: دالة review_wallet_request (بما فيها سداد المديونية) تُعرّف في
+-- supabase/fix-settlement.sql كمصدر واحد للحقيقة، حتى لا تلغيها إعادة تشغيل هذا الملف.
 
 create or replace function public.held_wallet_fare(p_rider_id uuid, p_except_ride uuid default null)
 returns numeric
@@ -587,122 +531,12 @@ begin
 end;
 $$;
 
-create or replace function public.settle_completed_ride(p_ride_id uuid)
-returns public.rides
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  ride public.rides;
-  v_fare numeric;
-  v_commission numeric;
-  v_net numeric;
-  v_captain_user uuid;
-  v_updated int;
-begin
-  select * into ride
-  from public.rides
-  where id = p_ride_id
-  for update;
-
-  if not found then
-    raise exception 'الرحلة غير موجودة';
-  end if;
-
-  if ride.status <> 'completed' then
-    raise exception 'لا يمكن تسوية رحلة غير مكتملة';
-  end if;
-
-  if ride.settled_at is not null then
-    return ride;
-  end if;
-
-  v_fare := coalesce(ride.fare, 0);
-  if v_fare <= 0 then
-    raise exception 'قيمة الرحلة غير صحيحة';
-  end if;
-
-  v_commission := round(v_fare * 0.10, 2);
-  v_net := round(v_fare - v_commission, 2);
-
-  select d.user_id into v_captain_user
-  from public.drivers d
-  where d.id = ride.driver_id;
-
-  perform public.ensure_wallet(ride.rider_id);
-  perform public.ensure_wallet(v_captain_user);
-
-  if ride.payment_method = 'wallet' then
-    update public.wallets
-    set balance = balance - v_fare,
-        updated_at = now()
-    where user_id = ride.rider_id
-      and balance >= v_fare;
-    get diagnostics v_updated = row_count;
-    if v_updated = 0 then
-      raise exception 'رصيد المحفظة غير كافٍ، يرجى الشحن أو الدفع نقداً';
-    end if;
-
-    insert into public.wallet_txns (user_id, amount, kind, note)
-    values (ride.rider_id, v_fare, 'ride_debit', 'خصم أجرة رحلة بالمحفظة');
-
-    if v_captain_user is not null then
-      update public.wallets
-      set balance = balance + v_net,
-          updated_at = now()
-      where user_id = v_captain_user;
-
-      insert into public.wallet_txns (user_id, amount, kind, note)
-      values (v_captain_user, v_net, 'ride_credit', 'صافي أجرة رحلة بعد عمولة التطبيق 10%');
-    end if;
-  else
-    if v_captain_user is not null then
-      update public.wallets
-      set balance = balance - v_commission,
-          updated_at = now()
-      where user_id = v_captain_user;
-
-      insert into public.wallet_txns (user_id, amount, kind, note)
-      values (v_captain_user, v_commission, 'commission', 'عمولة التطبيق 10% على رحلة نقدية');
-    end if;
-  end if;
-
-  update public.rides
-  set settled_at = now(),
-      app_commission = v_commission,
-      captain_net = v_net
-  where id = p_ride_id
-  returning * into ride;
-
-  return ride;
-end;
-$$;
-
-create or replace function public.trg_settle_completed_ride()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if new.status = 'completed' and (old.status is distinct from 'completed') then
-    perform public.settle_completed_ride(new.id);
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_settle_completed_ride on public.rides;
-create trigger trg_settle_completed_ride
-  after update of status
-  on public.rides
-  for each row
-  execute procedure public.trg_settle_completed_ride();
+-- ملاحظة: تسوية الرحلات (settle_completed_ride) وربط عمولة الرحلات النقدية
+-- بمديونية الكابتن تُعرّف في supabase/fix-settlement.sql كمصدر واحد للحقيقة.
+-- لا تُعِد تعريف الدالة هنا حتى لا تُلغي منطق المديونية عند إعادة تشغيل الملف.
 
 grant execute on function public.held_wallet_fare(uuid, uuid) to authenticated;
 grant execute on function public.assert_wallet_can_pay(uuid, numeric, uuid) to authenticated;
-grant execute on function public.settle_completed_ride(uuid) to authenticated;
 
 alter table public.ride_types enable row level security;
 drop policy if exists "read ride types" on public.ride_types;
