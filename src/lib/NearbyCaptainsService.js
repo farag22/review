@@ -1,12 +1,11 @@
 // src/lib/NearbyCaptainsService.js
 import { supabase } from './supabase';
-import { haversineKm } from './geo';
 
 export const NearbyCaptainsService = {
   /**
-   * Fetch online drivers within a certain radius (in km) from a given point.
+   * Fetch online drivers without strict radius filtering to ensure they show up immediately.
    */
-  async getNearbyDrivers(lat, lng, radiusKm = 5) {
+  async getNearbyDrivers(lat, lng, radiusKm = 500) {
     try {
       const { data: drivers, error } = await supabase
         .from('drivers')
@@ -16,17 +15,7 @@ export const NearbyCaptainsService = {
         .not('current_lng', 'is', null);
 
       if (error) throw error;
-      if (!drivers) return [];
-
-      const nearby = drivers.filter(driver => {
-        const distance = haversineKm(
-          { lat, lng },
-          { lat: driver.current_lat, lng: driver.current_lng }
-        );
-        return distance <= radiusKm;
-      });
-
-      return nearby;
+      return drivers || [];
     } catch (err) {
       console.error('Error fetching nearby drivers:', err);
       return [];
