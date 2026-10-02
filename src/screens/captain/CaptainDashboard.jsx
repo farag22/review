@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView from "../../components/MapView";
+import CaptainTracker from "../../components/CaptainTracker"; // إضافة مكون التتبع الخلفي
 import { PrimaryButton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCaptain } from "../../context/CaptainContext";
@@ -101,6 +102,9 @@ export default function CaptainDashboard() {
 
   return (
     <div className="flex-1 flex flex-col">
+      {/* تشغيل تتبع الموقع وإرسال الإحداثيات تلقائياً في الخلفية عند الاتصال */}
+      <CaptainTracker isOnline={online} />
+
       <div className="px-5 pt-5 flex items-center justify-between">
         <div>
           <p className="text-[12px] text-ink/50">كابتن Sahil Drive</p>
