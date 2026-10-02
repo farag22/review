@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { SearchIcon, HomeIcon, WorkIcon, PinIcon } from "../../components/Icons";
 import MapView from "../../components/MapView";
+import RiderMap from "../../components/RiderMap"; // استيراد خريطة تتبع الكباتن للركاب
 import { useAuth } from "../../context/AuthContext";
 import { useRide } from "../../context/RideContext";
 
@@ -51,15 +52,22 @@ export default function Home() {
       </div>
 
       <div className="px-5 mt-4">
-        <MapView
-          height={210}
-          userLocation={pickup}
-          showAccuracy
-          showRecenter
-          follow
-          locate
-          onLocate={refreshLocation}
-        />
+        {/* عرض خريطة الكباتن المتاحين بالقرب من موقع الراكب إذا توفرت الإحداثيات */}
+        {pickup?.lat && pickup?.lng ? (
+          <div className="h-[210px] w-full rounded-2xl overflow-hidden shadow-card">
+            <RiderMap centerLat={pickup.lat} centerLng={pickup.lng} radiusKm={5} />
+          </div>
+        ) : (
+          <MapView
+            height={210}
+            userLocation={pickup}
+            showAccuracy
+            showRecenter
+            follow
+            locate
+            onLocate={refreshLocation}
+          />
+        )}
       </div>
 
       <button
