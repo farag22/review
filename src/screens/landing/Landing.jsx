@@ -82,7 +82,7 @@ export default function Landing() {
             افتح التطبيق من المتصفح الآن، أو احفظ الصفحة على الشاشة الرئيسية لاستخدامها كتطبيق.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/welcome" className="h-12 px-5 rounded-2xl bg-emerald-500 text-slate-950 font-extrabold inline-flex items-center">
+            <Link to="/app" className="h-12 px-5 rounded-2xl bg-emerald-500 text-slate-950 font-extrabold inline-flex items-center">
               فتح التطبيق
             </Link>
             <Link to="/signup" className="h-12 px-5 rounded-2xl bg-white text-slate-950 font-extrabold inline-flex items-center">

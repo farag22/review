@@ -115,7 +115,7 @@ export default function App() {
               </RedirectIfAuthed>
             }
           />
-          <Route path="/welcome" element={<Navigate to="/" replace />} />
+          <Route path="/welcome" element={<Navigate to="/app" replace />} />
           <Route
             path="/signin"
             element={
@@ -137,7 +137,6 @@ export default function App() {
           <Route path="/create-new-password" element={<CreateNewPassword />} />
           <Route path="/password-updated" element={<PasswordUpdated />} />
 
-          <Route path="/admin" element={<Navigate to="/admin/signin" replace />} />
           <Route
             path="/admin"
             element={
@@ -167,7 +166,6 @@ export default function App() {
             }
           />
 
-          <Route path="/captain" element={<Navigate to="/captain/signin" replace />} />
           <Route
             path="/captain"
             element={
