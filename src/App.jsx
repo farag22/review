@@ -86,7 +86,7 @@ function RequireAdminAuth({ children }) {
 
 function AppFrame({ children }) {
   const location = useLocation();
-  if (location.pathname === "/") return children;
+  if (location.pathname === "/landing") return children;
   return (
     <div className="app-shell">
       <div className="screen-scroll flex flex-col">{children}</div>
@@ -98,9 +98,9 @@ export default function App() {
   return (
     <AppFrame>
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/landing" element={<Landing />} />
           <Route
-            path="/app"
+            path="/"
             element={
               <RedirectIfAuthed>
                 <Welcome />
@@ -115,7 +115,8 @@ export default function App() {
               </RedirectIfAuthed>
             }
           />
-          <Route path="/welcome" element={<Navigate to="/app" replace />} />
+          <Route path="/welcome" element={<Navigate to="/" replace />} />
+          <Route path="/app" element={<Navigate to="/" replace />} />
           <Route
             path="/signin"
             element={
