@@ -45,7 +45,7 @@ export default function Welcome() {
           <div className="pt-2 flex items-center justify-center gap-4 text-[13px]">
             <button
               type="button"
-              onClick={() => navigate("/captain/signin")}
+              onClick={() => navigate("/captain")}
               className="text-white/80 font-bold hover:text-emerald-300 transition-colors"
             >
               دخول الكابتن
@@ -53,7 +53,7 @@ export default function Welcome() {
             <span className="w-1 h-1 rounded-full bg-white/25" />
             <button
               type="button"
-              onClick={() => navigate("/admin/signin")}
+              onClick={() => navigate("/admin")}
               className="text-white/70 font-semibold hover:text-emerald-300 transition-colors"
             >
               لوحة الإدارة

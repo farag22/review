@@ -11,7 +11,7 @@ export default function Splash() {
 
   useEffect(() => {
     if (loading) return undefined;
-    const next = session?.user || user ? accountHomePath(accountType) : "/welcome";
+    const next = session?.user || user ? accountHomePath(accountType) : "/";
     const t = setTimeout(() => navigate(next, { replace: true }), 1400);
     return () => clearTimeout(t);
   }, [accountType, loading, navigate, session, user]);

@@ -85,7 +85,7 @@ export default function Profile() {
   async function handleSignOut() {
     setBusy(true);
     await signOut();
-    navigate("/welcome", { replace: true });
+    navigate("/", { replace: true });
   }
 
   return (
