@@ -83,7 +83,7 @@ export default function AdminSignIn() {
         </PrimaryButton>
         <button
           type="button"
-          onClick={() => navigate("/welcome")}
+          onClick={() => navigate("/")}
           className="text-center text-[12px] text-ink/40 pb-4"
         >
           العودة للرئيسية

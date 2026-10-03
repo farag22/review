@@ -67,7 +67,7 @@ export default function CaptainSignUp() {
       return;
     }
     if (!data?.session) {
-      navigate("/captain/signin", {
+      navigate("/captain", {
         replace: true,
         state: { notice: "تم إنشاء الحساب. سجّل الدخول بالبريد أو رقم الهاتف" },
       });
@@ -179,7 +179,7 @@ export default function CaptainSignUp() {
           لديك حساب كابتن؟{" "}
           <button
             type="button"
-            onClick={() => navigate("/captain/signin")}
+            onClick={() => navigate("/captain")}
             className="text-brand-600 font-bold"
           >
             تسجيل الدخول

@@ -87,7 +87,7 @@ export default function AdminDashboard() {
       const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
       if (cancelled) return;
       if (!isAdminUser(user, data?.role)) {
-        navigate("/admin/signin", { replace: true });
+        navigate("/admin", { replace: true });
         return;
       }
       await load();

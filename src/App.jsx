@@ -69,7 +69,7 @@ function RequireAuth({ children }) {
 function RequireCaptainAuth({ children }) {
   const { session, user, loading, accountType } = useAuth();
   if (loading) return <AuthLoading />;
-  if (!(session?.user || user)) return <Navigate to="/captain/signin" replace />;
+  if (!(session?.user || user)) return <Navigate to="/captain" replace />;
   if (accountType === "admin") return <Navigate to="/admin/dashboard" replace />;
   if (accountType !== "captain") return <Navigate to="/home" replace />;
   return children;
@@ -78,7 +78,7 @@ function RequireCaptainAuth({ children }) {
 function RequireAdminAuth({ children }) {
   const { session, user, loading, accountType } = useAuth();
   if (loading) return <AuthLoading />;
-  if (!(session?.user || user)) return <Navigate to="/admin/signin" replace />;
+  if (!(session?.user || user)) return <Navigate to="/admin" replace />;
   if (accountType !== "admin") return <Navigate to={accountHomePath(accountType)} replace />;
   return children;
 }
@@ -92,18 +92,19 @@ export default function App() {
             path="/"
             element={
               <RedirectIfAuthed>
-                <Splash />
-              </RedirectIfAuthed>
-            }
-          />
-          <Route
-            path="/welcome"
-            element={
-              <RedirectIfAuthed>
                 <Welcome />
               </RedirectIfAuthed>
             }
           />
+          <Route
+            path="/splash"
+            element={
+              <RedirectIfAuthed>
+                <Splash />
+              </RedirectIfAuthed>
+            }
+          />
+          <Route path="/welcome" element={<Navigate to="/" replace />} />
           <Route
             path="/signin"
             element={
@@ -126,6 +127,14 @@ export default function App() {
           <Route path="/password-updated" element={<PasswordUpdated />} />
 
           <Route
+            path="/admin"
+            element={
+              <RedirectIfAuthed>
+                <AdminSignIn />
+              </RedirectIfAuthed>
+            }
+          />
+          <Route
             path="/admin/signin"
             element={
               <RedirectIfAuthed>
@@ -146,6 +155,15 @@ export default function App() {
             }
           />
 
+          <Route
+            path="/captain"
+            element={
+              <RedirectIfAuthed>
+                <CaptainSignIn />
+              </RedirectIfAuthed>
+            }
+          />
+          <Route path="/captain-login" element={<Navigate to="/captain" replace />} />
           <Route
             path="/captain/signin"
             element={

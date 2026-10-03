@@ -47,7 +47,7 @@ export default function CaptainDashboard() {
     signingOutRef.current = true;
     setSigningOut(true);
     await signOut();
-    navigate("/captain/signin", { replace: true });
+    navigate("/captain", { replace: true });
   }
 
   useEffect(() => {

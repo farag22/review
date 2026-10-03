@@ -43,7 +43,7 @@ export default function CaptainSignIn() {
       return;
     }
     await refreshAccount(data?.session);
-    navigate("/captain/dashboard");
+    navigate("/captain/dashboard", { replace: true });
   }
 
   return (
@@ -96,7 +96,7 @@ export default function CaptainSignIn() {
         </p>
         <button
           type="button"
-          onClick={() => navigate("/welcome")}
+          onClick={() => navigate("/")}
           className="text-center text-[12px] text-ink/40 pb-4"
         >
           العودة لتطبيق الراكب
