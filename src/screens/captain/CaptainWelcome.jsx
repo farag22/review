@@ -16,12 +16,12 @@ export default function CaptainWelcome() {
             <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-400/20 flex items-center justify-center mb-5">
               <CarIllustration />
             </div>
-            <p className="text-[11px] tracking-[0.28em] text-emerald-300/80 font-bold">كابتن</p>
+            <p className="text-[11px] tracking-[0.28em] text-emerald-300/80 font-bold">SAHIL DRIVE</p>
             <h1 className="mt-2 text-[28px] leading-tight font-extrabold">
               Sahil <span className="text-emerald-400">Drive</span>
             </h1>
             <p className="mt-3 text-[14px] leading-7 text-white/70">
-              ابدأ استقبال الرحلات في سوهاج والقليوبية
+              رحلتك آمنة وسريعة في القليوبية، أينما تذهب
             </p>
           </div>
         </div>
