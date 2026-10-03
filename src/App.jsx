@@ -30,6 +30,7 @@ import Wallet from "./screens/wallet/Wallet";
 import ScheduleRide from "./screens/schedule/ScheduleRide";
 import Profile from "./screens/profile/Profile";
 
+import CaptainWelcome from "./screens/captain/CaptainWelcome";
 import CaptainSignIn from "./screens/captain/CaptainSignIn";
 import CaptainSignUp from "./screens/captain/CaptainSignUp";
 import CaptainDashboard from "./screens/captain/CaptainDashboard";
@@ -171,7 +172,7 @@ export default function App() {
             path="/captain"
             element={
               <RedirectIfAuthed>
-                <CaptainSignIn />
+                <CaptainWelcome />
               </RedirectIfAuthed>
             }
           />
