@@ -170,6 +170,20 @@ export function RideTypeIcon({ type = "economy", size = 48, active = false }) {
     );
   }
 
+  if (id.includes("motorcycle") || id.includes("moto")) {
+    return (
+      <RideGlyph size={size} active={active}>
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
+          <circle cx="6.2" cy="17.2" r="2.3" stroke={stroke} {...base} />
+          <circle cx="17.6" cy="17.2" r="2.3" stroke={stroke} {...base} />
+          <path d="M8.4 17.2h4.1L16.2 9.4h2.4" stroke={stroke} {...base} />
+          <path d="M12.6 12.4H8.8L7.4 9.6h3.2" stroke={stroke} {...base} />
+          <path d="M14.2 9.4l1.8 4.2h2.4" stroke={stroke} {...base} />
+        </svg>
+      </RideGlyph>
+    );
+  }
+
   if (id.includes("scooter") || id.includes("bike")) {
     return (
       <RideGlyph size={size} active={active}>

@@ -4,6 +4,7 @@ import MapView from "../../components/MapView";
 import RideLiveOverlay from "../../components/RideLiveOverlay";
 import { ShieldIcon } from "../../components/Icons";
 import { useRide } from "../../context/RideContext";
+import { formatMinutes } from "../../lib/geo";
 import { supabase } from "../../lib/supabase";
 
 const PAYMENT_LABELS = {
@@ -143,7 +144,7 @@ export default function TripProgress() {
         <div className="w-10 h-1 rounded-full bg-black/10 mx-auto -mt-1" />
         <div className="flex items-center justify-between">
           <p className="font-extrabold text-[15px]">جاري الرحلة الآن</p>
-          <span className="text-[12px] text-ink/45">تصل خلال {eta} د</span>
+           <span className="text-[12px] text-ink/45">تصل خلال {formatMinutes(eta)}</span>
         </div>
 
         <div className="rounded-2xl bg-sand p-3 flex items-center gap-3">

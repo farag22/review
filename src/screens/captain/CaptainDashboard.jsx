@@ -10,9 +10,10 @@ import { formatDistance, formatEgp, haversineKm } from "../../lib/geo";
 
 const TYPE_LABELS = {
   economy: "اقتصادي",
-  comfort: "Comfort",
-  masseya: "Masseya",
+  comfort: "مريح",
+  masseya: "ماسية",
   tuktuk: "توك توك",
+  motorcycle: "موتوسيكل",
   scooter: "سكوتر",
 };
 

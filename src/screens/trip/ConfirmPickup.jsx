@@ -4,7 +4,7 @@ import MapView from "../../components/MapView";
 import RideLiveOverlay from "../../components/RideLiveOverlay";
 import { PrimaryButton } from "../../components/ui";
 import { useRide } from "../../context/RideContext";
-import { haversineKm } from "../../lib/geo";
+import { formatMinutes, haversineKm, minutesOnly } from "../../lib/geo";
 import { supabase } from "../../lib/supabase";
 
 export default function ConfirmPickup() {
@@ -66,11 +66,13 @@ export default function ConfirmPickup() {
     [activeRide?.dropoff_lat, activeRide?.dropoff_lng, activeRide?.dropoff_address, destination]
   );
 
-  const eta = driver?.lat && mapPickup?.lat
-        ? Math.max(1, Math.round((haversineKm(driver, mapPickup) / 28) * 60))
-    : activeRide?.duration_min
-      ? Math.max(2, Math.round(activeRide.duration_min * 0.2))
-      : 5;
+  const eta = minutesOnly(
+    driver?.lat && mapPickup?.lat
+      ? (haversineKm(driver, mapPickup) / 28) * 60
+      : activeRide?.duration_min
+        ? Math.max(2, activeRide.duration_min * 0.2)
+        : 5
+  );
 
   async function startTrip() {
     setError("");
@@ -120,9 +122,9 @@ export default function ConfirmPickup() {
             <p className="font-extrabold text-[15px]">
               {driver ? "السائق في الطريق إليك" : "بانتظار تعيين سائق"}
             </p>
-            <p className="text-ink/50 text-[12px] mt-0.5">يصل خلال {eta} دقائق</p>
+            <p className="text-ink/50 text-[12px] mt-0.5">يصل خلال {formatMinutes(eta)}</p>
           </div>
-          <span className="text-brand-600 font-extrabold text-[15px]">{eta} د</span>
+          <span className="text-brand-600 font-extrabold text-[15px]">{formatMinutes(eta)}</span>
         </div>
 
         <div className="rounded-2xl bg-sand p-3 flex items-center gap-3">

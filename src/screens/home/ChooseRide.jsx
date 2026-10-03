@@ -5,7 +5,7 @@ import { ClockIcon, PaymentMethodIcon, RideTypeIcon } from "../../components/Ico
 import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
 import { WALLET_INSUFFICIENT_MSG, availableWalletBalance } from "../../lib/finance";
-import { formatDistance } from "../../lib/geo";
+import { formatDistance, formatMinutes } from "../../lib/geo";
 
 function badgeClass(type) {
   if (type === "fast") return "bg-emerald-400/20 text-emerald-200 border-emerald-300/25";
@@ -34,7 +34,7 @@ export default function ChooseRide() {
   }, [rideOptions, selectedRide, setSelectedRide]);
 
   const tripHint = route
-    ? `${formatDistance(route.distanceKm)} · ${route.durationMin} د`
+    ? `${formatDistance(route.distanceKm)} · ${formatMinutes(route.durationMin)}`
     : "جاري حساب المسار...";
   const payId = paymentMethod === "wallet" ? "wallet" : "cash";
   const available = availableWalletBalance(walletBalance, heldWalletFare);
@@ -114,7 +114,7 @@ export default function ChooseRide() {
                     </div>
                     <div className="flex items-center gap-1 mt-1 text-white/50">
                       <ClockIcon size={12} color="currentColor" />
-                      <span className="text-[12px]">وصول خلال {r.eta} د</span>
+                       <span className="text-[12px]">وصول خلال {formatMinutes(r.eta)}</span>
                     </div>
                   </div>
                   <div className="min-w-[78px] text-left shrink-0" dir="ltr">

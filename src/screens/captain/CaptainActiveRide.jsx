@@ -5,7 +5,7 @@ import RideLiveOverlay from "../../components/RideLiveOverlay";
 import { PrimaryButton } from "../../components/ui";
 import { useCaptain } from "../../context/CaptainContext";
 import { appCommission, captainNet } from "../../lib/finance";
-import { formatDistance, formatEgp, haversineKm } from "../../lib/geo";
+import { formatDistance, formatEgp, formatMinutes, haversineKm } from "../../lib/geo";
 
 const STEPS = [
   { status: "accepted", label: "الوصول لموقع الراكب", next: "arrived" },
@@ -56,7 +56,7 @@ export default function CaptainActiveRide() {
         <h1 className="text-2xl font-extrabold mt-1">تم إنهاء الرحلة</h1>
         <div className="mt-8 rounded-2xl bg-white shadow-card p-5 space-y-3">
            <Row label="المسافة" value={formatDistance(Number(done.distance_km) || 0)} />
-           <Row label="المدة" value={`${done.duration_min || 0} د`} />
+           <Row label="المدة" value={formatMinutes(done.duration_min || 0)} />
            <Row label="التكلفة" value={formatEgp(done.fare)} />
            <Row label="عمولة التطبيق 10%" value={formatEgp(done.app_commission ?? appCommission(done.fare))} />
            <Row label="صافي الكابتن" value={formatEgp(done.captain_net ?? captainNet(done.fare))} />
@@ -126,7 +126,7 @@ export default function CaptainActiveRide() {
           <div>
             <p className="font-extrabold text-[16px]">{stepTitle(activeRide.status)}</p>
             <p className="text-[12px] text-ink/50 mt-0.5">
-              {formatDistance(remainingKm)} متبقية · {route?.durationMin || activeRide.duration_min || "—"} د
+              {formatDistance(remainingKm)} متبقية · {formatMinutes(route?.durationMin || activeRide.duration_min || 1)}
             </p>
           </div>
           <span className="text-brand-700 font-extrabold">{formatEgp(activeRide.fare)}</span>

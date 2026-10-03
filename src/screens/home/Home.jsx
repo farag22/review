@@ -8,8 +8,8 @@ import { useRide } from "../../context/RideContext";
 
 const SERVICES = [
   { id: "economy", label: "سيارة" },
-  { id: "scooter", label: "سكوتر" },
   { id: "tuktuk", label: "توك توك" },
+  { id: "motorcycle", label: "موتوسيكل" },
 ];
 
 export default function Home() {

@@ -64,6 +64,33 @@ export function formatEgp(amount) {
   return `${n.toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م`;
 }
 
+export const RIDE_TYPE_LABELS = {
+  economy: "اقتصادي",
+  saver: "اقتصادي",
+  comfort: "مريح",
+  masseya: "ماسية",
+  tuktuk: "توك توك",
+  scooter: "سكوتر",
+  motorcycle: "موتوسيكل",
+  moto: "موتوسيكل",
+};
+
+export function rideTypeLabel(id, fallback) {
+  const key = String(id || "").toLowerCase();
+  return RIDE_TYPE_LABELS[key] || fallback || id || "";
+}
+
+export function minutesOnly(value) {
+  let n = Number(value) || 0;
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  if (n >= 24 * 60) n = Math.round(n / 60);
+  return Math.max(1, Math.min(999, Math.round(n)));
+}
+
+export function formatMinutes(value) {
+  return `${minutesOnly(value)} دقيقة`;
+}
+
 function jsonHeaders() {
   return { Accept: "application/json", "Accept-Language": "ar" };
 }
@@ -226,7 +253,7 @@ export async function getRoute(from, to, extras = []) {
     if (!route) return fallbackRoute(points);
     return {
       distanceKm: route.distance / 1000,
-      durationMin: Math.max(1, Math.round(route.duration / 60)),
+      durationMin: minutesOnly(route.duration / 60),
       path: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
     };
   } catch {
@@ -241,7 +268,7 @@ function fallbackRoute(points) {
   }
   return {
     distanceKm,
-    durationMin: Math.max(1, Math.round((distanceKm / 28) * 60)),
+    durationMin: minutesOnly((distanceKm / 28) * 60),
     path: points.map((p) => [p.lat, p.lng]),
   };
 }
@@ -345,6 +372,17 @@ export const FARE_PROFILES = {
     etaBias: -1,
     cta: "اطلب سكوتر",
   },
+  motorcycle: {
+    label: "موتوسيكل",
+    base: 9,
+    perKm: 3.1,
+    perMin: 0.15,
+    minFare: 11,
+    shortKm: 5,
+    shortPerKm: 2.35,
+    etaBias: -1,
+    cta: "اطلب موتوسيكل",
+  },
   tuktuk: {
     label: "توك توك",
     base: 10,
@@ -357,31 +395,31 @@ export const FARE_PROFILES = {
     cta: "اطلب توك توك",
   },
   economy: {
-    label: "Saver",
+    label: "اقتصادي",
     base: 16,
     perKm: 5.25,
     perMin: 0.32,
     minFare: 20,
     etaBias: 2,
-    cta: "اطلب Saver",
+    cta: "اطلب اقتصادي",
   },
   masseya: {
-    label: "Masseya",
+    label: "ماسية",
     base: 19,
     perKm: 6.15,
     perMin: 0.4,
     minFare: 24,
     etaBias: 1,
-    cta: "اطلب Masseya",
+    cta: "اطلب ماسية",
   },
   comfort: {
-    label: "Comfort",
+    label: "مريح",
     base: 24,
     perKm: 7.6,
     perMin: 0.5,
     minFare: 30,
     etaBias: -1,
-    cta: "اختر أولوية",
+    cta: "اطلب مريح",
   },
 };
 
@@ -391,7 +429,7 @@ export function getFareProfile(rideType) {
   if (preset) return { id, ...preset };
   return {
     id,
-    label: rideType?.label,
+    label: rideTypeLabel(id, rideType?.label),
     base: Number(rideType?.base_fare) || 15,
     perKm: Number(rideType?.per_km) || 5,
     perMin: Number(rideType?.per_min) || 0.35,

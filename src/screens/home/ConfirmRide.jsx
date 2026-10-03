@@ -5,7 +5,7 @@ import { CarBadge } from "../../components/Icons";
 import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
 import { WALLET_INSUFFICIENT_MSG, availableWalletBalance } from "../../lib/finance";
-import { formatDistance, formatEgp } from "../../lib/geo";
+import { formatDistance, formatEgp, formatMinutes } from "../../lib/geo";
 
 const PAYMENT_LABELS = {
   cash: "نقدًا",
@@ -68,7 +68,7 @@ export default function ConfirmRide() {
           <Row label="إلى" value={destination?.label || "—"} dotColor="#d9534f" />
           {route && (
             <p className="text-[12px] text-ink/50">
-              {formatDistance(route.distanceKm)} · {route.durationMin} دقيقة
+              {formatDistance(route.distanceKm)} · {formatMinutes(route.durationMin)}
             </p>
           )}
         </div>
@@ -90,7 +90,7 @@ export default function ConfirmRide() {
                 <CarBadge size={38} />
                 <div className="flex-1 text-right">
                   <p className="font-bold text-[13px]">{r.label}</p>
-                  <p className="text-[11px] text-ink/45">{r.eta} دقيقة</p>
+                  <p className="text-[11px] text-ink/45">{formatMinutes(r.eta)}</p>
                 </div>
                 <p className="font-extrabold text-[13px]">{formatEgp(r.price)}</p>
               </button>

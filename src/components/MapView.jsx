@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { formatDistance } from "../lib/geo";
+import { formatDistance, formatMinutes } from "../lib/geo";
 
 const TILE_LAYERS = [
   {
@@ -379,7 +379,7 @@ export default function MapView({
       {routeInfo?.distanceKm != null ? (
         <div className="sd-map-chip absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           {formatDistance(routeInfo.distanceKm)}
-          {routeInfo.durationMin != null ? ` · ${routeInfo.durationMin} د` : ""}
+          {routeInfo.durationMin != null ? ` · ${formatMinutes(routeInfo.durationMin)}` : ""}
         </div>
       ) : null}
       {locate ? (

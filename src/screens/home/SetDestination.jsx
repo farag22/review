@@ -4,7 +4,7 @@ import { ScreenHeader, PrimaryButton, Chip } from "../../components/ui";
 import { PinIcon, SearchIcon, ClockIcon, PlusIcon } from "../../components/Icons";
 import MapView from "../../components/MapView";
 import { useRide } from "../../context/RideContext";
-import { formatDistance, reverseGeocode, searchLocalPlaces, searchPlaces } from "../../lib/geo";
+import { formatDistance, formatMinutes, reverseGeocode, searchLocalPlaces, searchPlaces } from "../../lib/geo";
 
 export default function SetDestination() {
   const navigate = useNavigate();
@@ -80,7 +80,7 @@ export default function SetDestination() {
 
   const tripHint = useMemo(() => {
     if (!route) return pinBusy ? "جاري تحديد الموقع..." : "اضغط على الخريطة لتحديد النقطة";
-    return `${formatDistance(route.distanceKm)} · ${route.durationMin} د`;
+    return `${formatDistance(route.distanceKm)} · ${formatMinutes(route.durationMin)}`;
   }, [route, pinBusy]);
 
   return (

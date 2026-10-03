@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, watchPosition } from "../lib/geo";
+import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, rideTypeLabel, watchPosition } from "../lib/geo";
 import {
   CAPTAIN_LOCKED_MSG,
   WALLET_INSUFFICIENT_MSG,
@@ -78,7 +78,8 @@ export function CaptainProvider({ children }) {
 
   useEffect(() => {
     supabase.from("ride_types").select("*").then(({ data }) => {
-      if (data?.length) setRideTypes(data);
+      if (!data?.length) return;
+      setRideTypes(data.map((t) => ({ ...t, label: rideTypeLabel(t.id, t.label) })));
     });
   }, []);
 

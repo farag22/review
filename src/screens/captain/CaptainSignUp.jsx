@@ -2,13 +2,15 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PrimaryButton, TextField } from "../../components/ui";
 import { useAuth, resolveEmailAndPhone } from "../../context/AuthContext";
+import { rideTypeLabel } from "../../lib/geo";
 import { supabase } from "../../lib/supabase";
 
 const FALLBACK_TYPES = [
   { id: "economy", label: "اقتصادي" },
-  { id: "comfort", label: "Comfort" },
-  { id: "masseya", label: "Masseya" },
+  { id: "comfort", label: "مريح" },
+  { id: "masseya", label: "ماسية" },
   { id: "tuktuk", label: "توك توك" },
+  { id: "motorcycle", label: "موتوسيكل" },
   { id: "scooter", label: "سكوتر" },
 ];
 
@@ -31,7 +33,10 @@ export default function CaptainSignUp() {
 
   useEffect(() => {
     supabase.from("ride_types").select("id,label").then(({ data }) => {
-      if (data?.length) setRideTypes(data);
+      if (!data?.length) return;
+      const mapped = data.map((t) => ({ ...t, label: rideTypeLabel(t.id, t.label) }));
+      const hasMotorcycle = mapped.some((t) => t.id === "motorcycle");
+      setRideTypes(hasMotorcycle ? mapped : [...mapped, { id: "motorcycle", label: "موتوسيكل" }]);
     });
   }, []);
 
