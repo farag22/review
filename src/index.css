@@ -6,6 +6,11 @@ html, body, #root {
   height: 100%;
 }
 
+.landing-page {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
 body {
   font-family: "Cairo", system-ui, sans-serif;
 }

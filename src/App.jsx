@@ -5,6 +5,7 @@ import { CaptainProvider } from "./context/CaptainContext";
 import { useAuth } from "./context/AuthContext";
 import { accountHomePath } from "./lib/session";
 
+import Landing from "./screens/landing/Landing";
 import Splash from "./screens/onboarding/Splash";
 import Welcome from "./screens/onboarding/Welcome";
 import SignIn from "./screens/auth/SignIn";
@@ -83,13 +84,23 @@ function RequireAdminAuth({ children }) {
   return children;
 }
 
-export default function App() {
+function AppFrame({ children }) {
+  const location = useLocation();
+  if (location.pathname === "/") return children;
   return (
     <div className="app-shell">
-      <div className="screen-scroll flex flex-col">
+      <div className="screen-scroll flex flex-col">{children}</div>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AppFrame>
         <Routes>
+          <Route path="/" element={<Landing />} />
           <Route
-            path="/"
+            path="/app"
             element={
               <RedirectIfAuthed>
                 <Welcome />
@@ -126,6 +137,7 @@ export default function App() {
           <Route path="/create-new-password" element={<CreateNewPassword />} />
           <Route path="/password-updated" element={<PasswordUpdated />} />
 
+          <Route path="/admin" element={<Navigate to="/admin/signin" replace />} />
           <Route
             path="/admin"
             element={
@@ -155,6 +167,7 @@ export default function App() {
             }
           />
 
+          <Route path="/captain" element={<Navigate to="/captain/signin" replace />} />
           <Route
             path="/captain"
             element={
@@ -222,7 +235,6 @@ export default function App() {
             }
           />
         </Routes>
-      </div>
-    </div>
+    </AppFrame>
   );
 }
