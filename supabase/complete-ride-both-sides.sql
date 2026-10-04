@@ -33,6 +33,18 @@ create trigger trg_prevent_driver_sensitive_field_changes
 before update on public.drivers
 for each row execute function public.prevent_driver_sensitive_field_changes();
 
+drop policy if exists "rides rider start assigned" on public.rides;
+create policy "rides rider start assigned"
+on public.rides for update to authenticated
+using (
+  rider_id = auth.uid()
+  and status in ('accepted', 'arriving', 'arrived')
+)
+with check (
+  rider_id = auth.uid()
+  and status = 'in_progress'
+);
+
 -- A rider may finish only their own assigned active ride. The function changes
 -- status/completed_at only; the existing settlement trigger runs once and the
 -- realtime UPDATE is received by the captain client.
