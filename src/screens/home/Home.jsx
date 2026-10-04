@@ -1,8 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { SearchIcon, HomeIcon, WorkIcon, PinIcon } from "../../components/Icons";
+import ErrorBoundary from "../../components/ErrorBoundary";
 import MapView from "../../components/MapView";
-import RiderMap from "../../components/RiderMap"; // استيراد خريطة تتبع الكباتن للركاب
 import { useAuth } from "../../context/AuthContext";
 import { useRide } from "../../context/RideContext";
 
@@ -17,11 +17,12 @@ export default function Home() {
   const { user } = useAuth();
   const { pickup, locationError, refreshLocation, savedPlaces, rideOptions, setSelectedRide } = useRide();
   const name = user?.user_metadata?.full_name?.split(" ")[0] || "";
-  const home = savedPlaces.find((p) => p.label === "home");
-  const work = savedPlaces.find((p) => p.label === "work");
+  const places = Array.isArray(savedPlaces) ? savedPlaces : [];
+  const home = places.find((p) => p.label === "home");
+  const work = places.find((p) => p.label === "work");
 
   function goWithType(typeId) {
-    const option = rideOptions.find((r) => r.id === typeId);
+    const option = (rideOptions || []).find((r) => r.id === typeId);
     if (option) setSelectedRide(option);
     navigate("/set-destination");
   }
@@ -34,7 +35,10 @@ export default function Home() {
           <button type="button" onClick={refreshLocation} className="flex items-center gap-1.5 mt-0.5">
             <PinIcon size={16} />
             <p className="font-bold text-[15px]">
-              {pickup?.label || (pickup?.lat ? `${pickup.lat.toFixed(4)}, ${pickup.lng.toFixed(4)}` : "جاري تحديد موقعك...")}
+              {pickup?.label ||
+                (Number.isFinite(Number(pickup?.lat))
+                  ? `${Number(pickup.lat).toFixed(4)}, ${Number(pickup.lng).toFixed(4)}`
+                  : "جاري تحديد موقعك...")}
             </p>
           </button>
           {locationError ? (
@@ -52,12 +56,13 @@ export default function Home() {
       </div>
 
       <div className="px-5 mt-4">
-        {/* عرض خريطة الكباتن المتاحين بالقرب من موقع الراكب إذا توفرت الإحداثيات */}
-        {pickup?.lat && pickup?.lng ? (
-          <div className="h-[210px] w-full rounded-2xl overflow-hidden shadow-card">
-            <RiderMap centerLat={pickup.lat} centerLng={pickup.lng} radiusKm={5} />
-          </div>
-        ) : (
+        <ErrorBoundary
+          fallback={
+            <div className="h-[210px] rounded-2xl bg-white shadow-card flex items-center justify-center text-ink/50 text-[13px]">
+              تعذر تحميل الخريطة
+            </div>
+          }
+        >
           <MapView
             height={210}
             userLocation={pickup}
@@ -67,7 +72,7 @@ export default function Home() {
             locate
             onLocate={refreshLocation}
           />
-        )}
+        </ErrorBoundary>
       </div>
 
       <button

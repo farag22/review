@@ -160,17 +160,26 @@ export default function MapView({
 
   useEffect(() => {
     if (!wrapRef.current || mapRef.current) return undefined;
+    const el = wrapRef.current;
+    if (el._leaflet_id) {
+      el._leaflet_id = null;
+    }
     const center = userLocation || pickup || driver || { lat: 30.466, lng: 31.185 };
-    const map = L.map(wrapRef.current, {
-      zoomControl: false,
-      attributionControl: true,
-      dragging: interactive,
-      scrollWheelZoom: interactive,
-      doubleClickZoom: interactive,
-      touchZoom: interactive,
-      boxZoom: interactive,
-      keyboard: interactive,
-    }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
+    let map;
+    try {
+      map = L.map(el, {
+        zoomControl: false,
+        attributionControl: true,
+        dragging: interactive,
+        scrollWheelZoom: interactive,
+        doubleClickZoom: interactive,
+        touchZoom: interactive,
+        boxZoom: interactive,
+        keyboard: interactive,
+      }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
+    } catch {
+      return undefined;
+    }
     const first = TILE_LAYERS[0];
     const tiles = L.tileLayer(first.url, {
       attribution: first.attr,
@@ -194,9 +203,15 @@ export default function MapView({
       clickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
     });
 
-    const resize = () => map.invalidateSize({ animate: false });
-    const ro = new ResizeObserver(resize);
-    ro.observe(wrapRef.current);
+    const resize = () => {
+      try {
+        map.invalidateSize({ animate: false });
+      } catch {
+        /* map already removed */
+      }
+    };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
+    if (ro && wrapRef.current) ro.observe(wrapRef.current);
     window.addEventListener("resize", resize);
     const t1 = setTimeout(resize, 80);
     const t2 = setTimeout(resize, 400);
@@ -205,8 +220,16 @@ export default function MapView({
       clearTimeout(t1);
       clearTimeout(t2);
       window.removeEventListener("resize", resize);
-      ro.disconnect();
-      map.remove();
+      try {
+        ro?.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        map.remove();
+      } catch {
+        /* ignore */
+      }
       mapRef.current = null;
     };
   }, []);
@@ -215,10 +238,14 @@ export default function MapView({
     const map = mapRef.current;
     if (!map) return;
     const toggle = interactive ? "enable" : "disable";
-    map.dragging[toggle]();
-    map.scrollWheelZoom[toggle]();
-    map.doubleClickZoom[toggle]();
-    map.touchZoom[toggle]();
+    try {
+      map.dragging?.[toggle]?.();
+      map.scrollWheelZoom?.[toggle]?.();
+      map.doubleClickZoom?.[toggle]?.();
+      map.touchZoom?.[toggle]?.();
+    } catch {
+      /* map already removed */
+    }
   }, [interactive]);
 
   useEffect(() => {
@@ -320,8 +347,9 @@ export default function MapView({
       layers.routeGlow = null;
     }
 
-    layers.pins.clearLayers();
+    layers.pins?.clearLayers();
     (ridePins || []).forEach((pin) => {
+      if (!layers.pins) return;
       if (pin.lat == null || pin.lng == null) return;
       const marker = L.marker([pin.lat, pin.lng], {
         icon: requestIcon(pin.label || "طلب"),
@@ -351,7 +379,13 @@ export default function MapView({
       } else if (bounds.length === 1) {
         map.setView(bounds[0], 16, { animate: false });
       }
-      setTimeout(() => map.invalidateSize({ animate: false }), 50);
+      setTimeout(() => {
+        try {
+          map.invalidateSize({ animate: false });
+        } catch {
+          /* map already removed */
+        }
+      }, 50);
     } else if (followRef.current && driver?.lat != null) {
       map.panTo([driver.lat, driver.lng], { animate: true, duration: 0.35 });
     } else if (followRef.current && gpsPoint) {

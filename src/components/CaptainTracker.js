@@ -9,15 +9,14 @@ export default function CaptainTracker({ isOnline }) {
 
   useEffect(() => {
     if (!isOnline) {
-      if (watchIdRef.current !== null) {
+      if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
       return;
     }
 
-    if (!navigator.geolocation) {
-      console.error('Geolocation is not supported by this browser');
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
       return;
     }
 

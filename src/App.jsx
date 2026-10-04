@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { RideProvider } from "./context/RideContext";
 import { CaptainProvider } from "./context/CaptainContext";
 import { useAuth } from "./context/AuthContext";
@@ -87,6 +88,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="screen-scroll flex flex-col">
+        <ErrorBoundary>
         <Routes>
           <Route
             path="/"
@@ -222,6 +224,7 @@ export default function App() {
             }
           />
         </Routes>
+        </ErrorBoundary>
       </div>
     </div>
   );
