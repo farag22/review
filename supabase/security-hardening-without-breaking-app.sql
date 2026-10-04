@@ -42,7 +42,8 @@ as $$
 begin
   if auth.uid() is not null
      and auth.uid() = old.user_id
-     and not public.is_admin() then
+     and not public.is_admin()
+     and coalesce(current_setting('app.internal_driver_update', true), 'false') <> 'true' then
     if new.debt is distinct from old.debt
        or new.locked is distinct from old.locked
        or new.locked_at is distinct from old.locked_at

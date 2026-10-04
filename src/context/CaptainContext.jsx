@@ -467,7 +467,21 @@ export function CaptainProvider({ children }) {
   }
 
   async function cancelActiveRide() {
-    return updateActiveStatus("cancelled");
+    if (!activeRide?.id || !driver?.id) return null;
+
+    // Use a dedicated server-side cancellation path. It changes only the
+    // ride status and does not grant the captain permission to edit any
+    // sensitive ride or driver fields.
+    const { data: rpcData, error: cancelError } = await supabase.rpc("captain_cancel_ride", {
+      p_ride_id: activeRide.id,
+    });
+    if (cancelError) throw new Error(mapCaptainError(cancelError, "تعذر إلغاء الرحلة"));
+
+    const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    setActiveRide(null);
+    setRoute(null);
+    await refreshPendingAndActive();
+    return data || null;
   }
 
   async function loadDriverDebt() {

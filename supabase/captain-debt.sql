@@ -54,6 +54,9 @@ begin
 
   v_debt := round(greatest(coalesce(v_driver.debt, 0), 0), 2);
 
+  -- Trusted server-side settlement update; do not treat it as captain editing.
+  perform set_config('app.internal_driver_update', 'true', true);
+
   update public.drivers
   set debt = v_debt,
       locked = (v_debt >= 300),

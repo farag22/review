@@ -343,6 +343,17 @@ export function RideProvider({ children }) {
 
   async function updateRideStatus(status, extra = {}) {
     if (!activeRide?.id) return null;
+    if (status === "completed") {
+      const { data: rpcData, error: completeError } = await supabase.rpc("rider_complete_ride", {
+        p_ride_id: activeRide.id,
+      });
+      if (completeError) throw new Error(mapRideError(completeError, "تعذر إنهاء الرحلة"));
+      const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      setActiveRide(data || null);
+      activeRideRef.current = data || null;
+      await refreshWallet();
+      return data || null;
+    }
     const patch = { status, ...extra };
     if (status === "in_progress") patch.started_at = new Date().toISOString();
     if (status === "completed") patch.completed_at = new Date().toISOString();

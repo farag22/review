@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView from "../../components/MapView";
 import RideLiveOverlay from "../../components/RideLiveOverlay";
@@ -19,6 +19,10 @@ export default function CaptainActiveRide() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(null);
+
+  useEffect(() => {
+    if (!activeRide && !done) navigate("/captain/dashboard", { replace: true });
+  }, [activeRide, done, navigate]);
 
   const pickup = useMemo(
     () =>
