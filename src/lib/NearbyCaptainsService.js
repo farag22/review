@@ -1,47 +1,47 @@
-// src/lib/NearbyCaptainsService.js
-import { supabase } from './supabase';
+import { supabase } from "./supabase";
+
+function driverPoint(driver) {
+  if (!driver) return null;
+  const lat = Number(driver.lat ?? driver.current_lat);
+  const lng = Number(driver.lng ?? driver.current_lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { ...driver, lat, lng };
+}
 
 export const NearbyCaptainsService = {
-  /**
-   * Fetch online drivers without strict radius filtering to ensure they show up immediately.
-   */
-  async getNearbyDrivers(lat, lng, radiusKm = 500) {
+  async getNearbyDrivers() {
     try {
       const { data: drivers, error } = await supabase
-        .from('drivers')
-        .select('*')
-        .eq('is_online', true)
-        .not('current_lat', 'is', null)
-        .not('current_lng', 'is', null);
+        .from("drivers")
+        .select("id, full_name, is_online, lat, lng, ride_type")
+        .eq("is_online", true);
 
       if (error) throw error;
-      return drivers || [];
+      return (drivers || []).map(driverPoint).filter(Boolean);
     } catch (err) {
-      console.error('Error fetching nearby drivers:', err);
+      console.error("Error fetching nearby drivers:", err);
       return [];
     }
   },
 
-  /**
-   * Subscribe to real-time location and status changes for drivers.
-   */
   subscribeToDrivers(onDriverUpdate, onDriverRemove) {
     const channel = supabase
-      .channel('public:drivers:tracking')
+      .channel("public:drivers:tracking")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'drivers',
+          event: "*",
+          schema: "public",
+          table: "drivers",
         },
         (payload) => {
-          const updatedDriver = payload.new;
-          if (!updatedDriver.is_online || !updatedDriver.current_lat) {
-            if (onDriverRemove) onDriverRemove(updatedDriver.id);
-          } else {
-            if (onDriverUpdate) onDriverUpdate(updatedDriver);
+          const updatedDriver = driverPoint(payload.new);
+          if (!updatedDriver || !updatedDriver.is_online) {
+            const id = payload.new?.id || payload.old?.id;
+            if (id && onDriverRemove) onDriverRemove(id);
+            return;
           }
+          if (onDriverUpdate) onDriverUpdate(updatedDriver);
         }
       )
       .subscribe();
@@ -49,5 +49,5 @@ export const NearbyCaptainsService = {
     return () => {
       supabase.removeChannel(channel);
     };
-  }
+  },
 };

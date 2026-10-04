@@ -12,19 +12,21 @@ export class CaptainMarkerAnimator {
 
   // Update marker rotation/heading if available
   updateHeading(heading) {
-    if (this.marker && heading !== null && heading !== undefined) {
-      const icon = this.marker.getElement();
-      if (icon) {
-        const innerImg = icon.querySelector('.driver-marker-icon') || icon;
-        innerImg.style.transform = `rotate(${heading}deg)`;
-        innerImg.style.transition = 'transform 0.3s ease-out';
-      }
+    if (!this.marker || heading === null || heading === undefined) return;
+    try {
+      const icon = this.marker.getElement?.();
+      if (!icon) return;
+      const innerImg = icon.querySelector(".driver-marker-icon") || icon;
+      innerImg.style.transform = `rotate(${heading}deg)`;
+      innerImg.style.transition = "transform 0.3s ease-out";
+    } catch {
+      /* ignore */
     }
   }
 
   // Smooth linear interpolation for position movement
   animateTo(newLat, newLng, duration = 1000) {
-    if (!this.marker) return;
+    if (!this.marker || !this.marker.getLatLng) return;
 
     const startLatLng = this.marker.getLatLng();
     const endLatLng = [newLat, newLng];

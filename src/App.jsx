@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { RideProvider } from "./context/RideContext";
 import { CaptainProvider } from "./context/CaptainContext";
 import { useAuth } from "./context/AuthContext";
@@ -98,6 +99,7 @@ function AppFrame({ children }) {
 export default function App() {
   return (
     <AppFrame>
+      <ErrorBoundary>
         <Routes>
           <Route path="/landing" element={<Landing />} />
           <Route
@@ -235,6 +237,7 @@ export default function App() {
             }
           />
         </Routes>
+      </ErrorBoundary>
     </AppFrame>
   );
 }

@@ -1,4 +1,9 @@
 import L from "./leaflet";
-import "leaflet-rotate/dist/leaflet-rotate.js";
+
+try {
+  if (typeof globalThis !== "undefined") globalThis.L = L;
+} catch {
+  /* ignore */
+}
 
 export default L;

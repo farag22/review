@@ -104,7 +104,7 @@ export default function CaptainDashboard() {
   return (
     <div className="flex-1 flex flex-col">
       {/* تشغيل تتبع الموقع وإرسال الإحداثيات تلقائياً في الخلفية عند الاتصال */}
-      <CaptainTracker isOnline={online} />
+      {online ? <CaptainTracker isOnline={online} /> : null}
 
       <div className="px-5 pt-5 flex items-center justify-between">
         <div>
