@@ -61,7 +61,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.captain_update_ride_status(uuid, text) from anon;
+revoke execute on function public.captain_update_ride_status(uuid, text) from public, anon;
 grant execute on function public.captain_update_ride_status(uuid, text) to authenticated;
 
 -- Keep a narrowly-scoped RLS policy for terminal transitions.
@@ -137,7 +137,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.rider_cancel_ride(uuid) from anon;
+revoke execute on function public.rider_cancel_ride(uuid) from public, anon;
 grant execute on function public.rider_cancel_ride(uuid) to authenticated;
 
 commit;
