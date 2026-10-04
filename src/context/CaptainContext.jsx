@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, isOffRoute, rideTypeLabel, watchPosition } from "../lib/geo";
+import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, isOffRoute, resolveHeading, rideTypeLabel, watchPosition } from "../lib/geo";
 import {
   CAPTAIN_LOCKED_MSG,
   WALLET_INSUFFICIENT_MSG,
@@ -181,15 +181,17 @@ export function CaptainProvider({ children }) {
   async function refreshLocation() {
     try {
       const coords = await getCurrentCoords();
-      setLocation(coords);
-      lastGpsRef.current = coords;
+      const heading = resolveHeading(coords, lastGpsRef.current);
+      const next = { ...coords, heading };
+      setLocation(next);
+      lastGpsRef.current = next;
       if (driverRef.current?.id) {
         await supabase
           .from("drivers")
           .update({ lat: coords.lat, lng: coords.lng })
           .eq("id", driverRef.current.id);
         setDriver((prevDriver) =>
-          prevDriver ? { ...prevDriver, lat: coords.lat, lng: coords.lng } : prevDriver
+          prevDriver ? { ...prevDriver, lat: coords.lat, lng: coords.lng, heading } : prevDriver
         );
       }
     } catch (err) {
@@ -202,17 +204,7 @@ export function CaptainProvider({ children }) {
     const stop = watchPosition(
       async (coords) => {
         const prev = lastGpsRef.current;
-        let heading = coords.heading;
-        if (!Number.isFinite(heading) && prev?.lat != null) {
-          const dLng = coords.lng - prev.lng;
-          const y = Math.sin((dLng * Math.PI) / 180) * Math.cos((coords.lat * Math.PI) / 180);
-          const x =
-            Math.cos((prev.lat * Math.PI) / 180) * Math.sin((coords.lat * Math.PI) / 180) -
-            Math.sin((prev.lat * Math.PI) / 180) *
-              Math.cos((coords.lat * Math.PI) / 180) *
-              Math.cos((dLng * Math.PI) / 180);
-          heading = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-        }
+        const heading = resolveHeading(coords, prev);
         const next = { ...coords, heading };
         setLocation(next);
         const moved = !prev || haversineKm(prev, coords) >= 0.02;
@@ -224,7 +216,7 @@ export function CaptainProvider({ children }) {
           .update({ lat: coords.lat, lng: coords.lng })
           .eq("id", driver.id);
         setDriver((prevDriver) =>
-          prevDriver ? { ...prevDriver, lat: coords.lat, lng: coords.lng } : prevDriver
+          prevDriver ? { ...prevDriver, lat: coords.lat, lng: coords.lng, heading } : prevDriver
         );
       },
       (err) => setError(geoErrorMessage(err))

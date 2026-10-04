@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import L from "../lib/leafletRotate";
 import { formatDistance, formatMinutes } from "../lib/geo";
 
 const TILE_LAYERS = [
@@ -75,8 +74,20 @@ function userDotIcon() {
   });
 }
 
-function carIcon(heading) {
-  const rot = Number.isFinite(heading) ? heading : 0;
+function headingOf(point) {
+  const value = point?.heading;
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function shortestTurn(from, to) {
+  let delta = to - from;
+  while (delta > 180) delta -= 360;
+  while (delta < -180) delta += 360;
+  return delta;
+}
+
+function carIcon(heading, mapRotated) {
+  const rot = mapRotated ? 0 : headingOf({ heading }) || 0;
   return L.divIcon({
     className: "sd-marker",
     html: `<div style="width:36px;height:36px;transform:rotate(${rot}deg);filter:drop-shadow(0 3px 6px rgba(15,23,42,.35))">
@@ -157,7 +168,7 @@ export default function MapView({
   const userKey = pointKey(userLocation);
   const pathKey = routePathKey(path);
   const requestsKey = pinsKey(ridePins);
-  const headingKey = Number.isFinite(driver?.heading) ? Math.round(driver.heading) : 0;
+  const headingKey = Math.round(headingOf(driver) ?? headingOf(userLocation) ?? 0);
 
   useEffect(() => {
     if (!wrapRef.current || mapRef.current) return undefined;
@@ -171,6 +182,12 @@ export default function MapView({
       touchZoom: interactive,
       boxZoom: interactive,
       keyboard: interactive,
+      rotate: true,
+      bearing: 0,
+      rotateControl: false,
+      compassBearing: false,
+      touchRotate: interactive,
+      shiftKeyRotate: false,
     }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
     const first = TILE_LAYERS[0];
     const tiles = L.tileLayer(first.url, {
@@ -275,7 +292,9 @@ export default function MapView({
       Boolean(destDragRef.current),
       (pt) => destDragRef.current?.(pt)
     );
-    upsert("driver", driver, carIcon(driver?.heading), false);
+    const followHeading = headingOf(driver) ?? headingOf(gpsPoint);
+    const mapRotated = Boolean(followRef.current && Number.isFinite(followHeading));
+    upsert("driver", driver, carIcon(driver?.heading, mapRotated), false);
 
     if (showAccuracy && gpsPoint?.accuracy > 8 && gpsPoint.accuracy < 250) {
       if (layers.accuracy) {
@@ -341,8 +360,12 @@ export default function MapView({
     const followTarget = followRef.current && !(ridePins || []).length ? driver || gpsPoint : null;
     if (followTarget?.lat != null) {
       if (!pausedRef.current) {
-        const zoom = Math.max(map.getZoom() || 16, 16);
-        map.setView([followTarget.lat, followTarget.lng], zoom, { animate: true });
+        map.panTo([followTarget.lat, followTarget.lng], { animate: true, duration: 0.35 });
+        const heading = headingOf(followTarget) ?? headingOf(driver) ?? headingOf(gpsPoint);
+        if (Number.isFinite(heading) && typeof map.setBearing === "function") {
+          const current = Number(map.getBearing?.()) || 0;
+          if (Math.abs(shortestTurn(current, heading)) >= 3) map.setBearing(heading);
+        }
       }
     } else {
       const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${requestsKey}|${JSON.stringify(pad)}`;
@@ -360,11 +383,14 @@ export default function MapView({
         if (bounds.length > 1) {
           map.fitBounds(bounds, { maxZoom: 17, animate: false, ...pad });
         } else if (bounds.length === 1) {
-          map.setView(bounds[0], 16, { animate: false });
+          map.panTo(bounds[0], { animate: false });
         }
         setTimeout(() => map.invalidateSize({ animate: false }), 50);
       } else if (userLocation?.lat != null && !destination?.lat && !pickup?.lat) {
-        map.setView([userLocation.lat, userLocation.lng], map.getZoom() || 16, { animate: true });
+        map.panTo([userLocation.lat, userLocation.lng], { animate: true });
+      }
+      if (typeof map.setBearing === "function" && Math.abs(Number(map.getBearing?.()) || 0) > 0.5) {
+        map.setBearing(0);
       }
     }
   }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy]);
@@ -374,7 +400,11 @@ export default function MapView({
     const target = driver || userLocation || pickup;
     if (!map || target?.lat == null) return;
     pausedRef.current = false;
-    map.flyTo([target.lat, target.lng], Math.max(map.getZoom() || 16, 16), { duration: 0.45 });
+    map.panTo([target.lat, target.lng], { animate: true, duration: 0.45 });
+    const heading = headingOf(target) ?? headingOf(driver) ?? headingOf(userLocation);
+    if (followRef.current && Number.isFinite(heading) && typeof map.setBearing === "function") {
+      map.setBearing(heading);
+    }
   }
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;

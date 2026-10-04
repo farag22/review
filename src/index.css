@@ -105,6 +105,7 @@ input:focus, textarea:focus, select:focus {
   height: 100%;
   font-family: "Cairo", system-ui, sans-serif;
   background: #d7e4dc;
+  overflow: hidden;
 }
 
 .sd-marker {

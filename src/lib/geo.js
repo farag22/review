@@ -54,6 +54,23 @@ function toRad(deg) {
   return (deg * Math.PI) / 180;
 }
 
+export function bearingDegrees(from, to) {
+  if (!from || !to || from.lat == null || to.lat == null || from.lng == null || to.lng == null) return null;
+  const dLng = toRad(to.lng - from.lng);
+  const lat1 = toRad(from.lat);
+  const lat2 = toRad(to.lat);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  if (Math.abs(y) < 1e-12 && Math.abs(x) < 1e-12) return null;
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+export function resolveHeading(coords, previous) {
+  const heading = coords?.heading;
+  if (Number.isFinite(heading) && heading >= 0) return heading;
+  return bearingDegrees(previous, coords);
+}
+
 export function formatDistance(km) {
   if (km < 1) return `${Math.round(km * 1000)} م`;
   return `${km.toFixed(1)} كم`;

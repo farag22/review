@@ -10,6 +10,7 @@ import {
   haversineKm,
   isOffRoute,
   minutesOnly,
+  resolveHeading,
   reverseGeocode,
   rideTypeLabel,
   watchPosition,
@@ -56,6 +57,7 @@ export function RideProvider({ children }) {
   const rerouteAtRef = useRef(0);
   const reroutingRef = useRef(false);
   const lastGeoRef = useRef({ lat: null, lng: null, at: 0 });
+  const lastGpsRef = useRef(null);
 
   useEffect(() => {
     activeRideRef.current = activeRide;
@@ -66,13 +68,16 @@ export function RideProvider({ children }) {
     setGpsReady(true);
     setLocationError("");
     if (activeRideRef.current) return;
+    const heading = resolveHeading(coords, lastGpsRef.current);
+    lastGpsRef.current = { lat: coords.lat, lng: coords.lng, heading };
     setPickup((prev) => {
-      if (prev?.manual) return { ...prev, accuracy: coords.accuracy };
+      if (prev?.manual) return { ...prev, accuracy: coords.accuracy, heading };
       return {
         ...prev,
         lat: coords.lat,
         lng: coords.lng,
         accuracy: coords.accuracy,
+        heading,
         label: prev?.label && prev.label !== "جاري تحديد موقعك..." ? prev.label : "موقعك الحالي",
       };
     });
@@ -83,10 +88,10 @@ export function RideProvider({ children }) {
     lastGeoRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
     try {
       const place = await reverseGeocode(coords.lat, coords.lng);
-      setPickup((prev) => (prev?.manual ? prev : { ...place, accuracy: coords.accuracy }));
+      setPickup((prev) => (prev?.manual ? prev : { ...place, accuracy: coords.accuracy, heading }));
     } catch {
       setPickup((prev) =>
-        prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng }
+        prev?.manual ? prev : { label: "موقعك الحالي", address: "", lat: coords.lat, lng: coords.lng, heading }
       );
     }
   }
@@ -271,7 +276,14 @@ export function RideProvider({ children }) {
       return null;
     }
     const { data } = await supabase.from("drivers").select("*").eq("id", driverId).maybeSingle();
-    setDriver(data || null);
+    if (!data) {
+      setDriver(null);
+      return null;
+    }
+    setDriver((prev) => {
+      const heading = resolveHeading(data, prev) ?? prev?.heading ?? null;
+      return { ...data, heading };
+    });
     return data;
   }
 
