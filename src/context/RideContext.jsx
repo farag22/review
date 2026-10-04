@@ -314,12 +314,15 @@ export function RideProvider({ children }) {
       scheduled_at: scheduledAt || null,
     };
 
-    let { data, error } = await supabase.from("rides").insert(payload).select().single();
+    let { data: rows, error } = await supabase.from("rides").insert(payload).select();
+    let data = rows?.[0] || null;
     if (error && /distance_km|duration_min|scheduled_at/i.test(error.message || "")) {
       const { distance_km, duration_min, scheduled_at, ...legacy } = payload;
-      ({ data, error } = await supabase.from("rides").insert(legacy).select().single());
+      ({ data: rows, error } = await supabase.from("rides").insert(legacy).select());
+      data = rows?.[0] || null;
     }
     if (error) throw new Error(mapRideError(error, "تعذر طلب الرحلة"));
+    if (!data) throw new Error("تعذر إنشاء الرحلة: لم يتم إرجاع سجل الرحلة");
 
     if (stops.length && data?.id) {
       await supabase.from("ride_stops").insert(
@@ -357,8 +360,14 @@ export function RideProvider({ children }) {
     const patch = { status, ...extra };
     if (status === "in_progress") patch.started_at = new Date().toISOString();
     if (status === "completed") patch.completed_at = new Date().toISOString();
-    const { data, error } = await supabase.from("rides").update(patch).eq("id", activeRide.id).select().single();
+    const { data: rows, error } = await supabase
+      .from("rides")
+      .update(patch)
+      .eq("id", activeRide.id)
+      .select();
     if (error) throw new Error(mapRideError(error, "تعذر تحديث الرحلة"));
+    const data = rows?.[0] || null;
+    if (!data) throw new Error("تعذر تحديث الرحلة: الرحلة غير موجودة أو لا يمكن تعديلها");
     setActiveRide(data);
     activeRideRef.current = data;
     if (status === "completed" || status === "cancelled") await refreshWallet();
