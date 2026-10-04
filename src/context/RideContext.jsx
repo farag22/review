@@ -8,6 +8,7 @@ import {
   getFareProfile,
   getRoute,
   haversineKm,
+  isOffRoute,
   minutesOnly,
   reverseGeocode,
   rideTypeLabel,
@@ -51,6 +52,9 @@ export function RideProvider({ children }) {
   const [walletBalance, setWalletBalance] = useState(0);
   const [heldWalletFare, setHeldWalletFare] = useState(0);
   const activeRideRef = useRef(null);
+  const routeRef = useRef(null);
+  const rerouteAtRef = useRef(0);
+  const reroutingRef = useRef(false);
   const lastGeoRef = useRef({ lat: null, lng: null, at: 0 });
 
   useEffect(() => {
@@ -185,6 +189,11 @@ export function RideProvider({ children }) {
   }, [user]);
 
   useEffect(() => {
+    routeRef.current = route;
+  }, [route]);
+
+  useEffect(() => {
+    if (["accepted", "arrived", "in_progress"].includes(activeRide?.status)) return undefined;
     if (!pickup?.lat || !destination?.lat) {
       setRoute(null);
       return undefined;
@@ -196,7 +205,33 @@ export function RideProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [pickup, destination, stops]);
+  }, [pickup, destination, stops, activeRide?.status]);
+
+  useEffect(() => {
+    if (!["accepted", "arrived", "in_progress"].includes(activeRide?.status)) return undefined;
+    if (driver?.lat == null || driver?.lng == null) return undefined;
+    const target =
+      activeRide.status === "in_progress"
+        ? { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng }
+        : { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
+    if (target.lat == null || target.lng == null) return undefined;
+    const current = routeRef.current;
+    if (current?.path?.length > 1 && !isOffRoute(driver, current.path, 0.08)) return undefined;
+    if (reroutingRef.current || Date.now() - rerouteAtRef.current < 6000) return undefined;
+    let cancelled = false;
+    reroutingRef.current = true;
+    getRoute(driver, target).then((next) => {
+      if (!cancelled && next?.path?.length > 1) {
+        rerouteAtRef.current = Date.now();
+        setRoute(next);
+      }
+    }).finally(() => {
+      reroutingRef.current = false;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [driver?.lat, driver?.lng, activeRide?.id, activeRide?.status, activeRide?.pickup_lat, activeRide?.dropoff_lat]);
 
   const rideOptions = useMemo(() => {
     const distanceKm = route?.distanceKm || 0;

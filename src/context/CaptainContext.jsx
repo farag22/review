@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
-import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, rideTypeLabel, watchPosition } from "../lib/geo";
+import { calcFare, geoErrorMessage, getCurrentCoords, getRoute, haversineKm, isOffRoute, rideTypeLabel, watchPosition } from "../lib/geo";
 import {
   CAPTAIN_LOCKED_MSG,
   WALLET_INSUFFICIENT_MSG,
@@ -71,10 +71,22 @@ export function CaptainProvider({ children }) {
   });
   const driverRef = useRef(null);
   const lastGpsRef = useRef(null);
+  const activeRideRef = useRef(null);
+  const routeRef = useRef(null);
+  const rerouteAtRef = useRef(0);
+  const reroutingRef = useRef(false);
 
   useEffect(() => {
     driverRef.current = driver;
   }, [driver]);
+
+  useEffect(() => {
+    activeRideRef.current = activeRide;
+  }, [activeRide]);
+
+  useEffect(() => {
+    routeRef.current = route;
+  }, [route]);
 
   useEffect(() => {
     supabase.from("ride_types").select("*").then(({ data }) => {
@@ -328,7 +340,14 @@ export function CaptainProvider({ children }) {
     let cancelled = false;
     const pickup = { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
     const dropoff = { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng };
-    getRoute(pickup, dropoff).then((r) => {
+    const here =
+      lastGpsRef.current?.lat != null
+        ? lastGpsRef.current
+        : driverRef.current?.lat != null
+          ? { lat: driverRef.current.lat, lng: driverRef.current.lng }
+          : null;
+    const target = activeRide.status === "in_progress" ? dropoff : pickup;
+    getRoute(here || pickup, target || dropoff).then((r) => {
       if (!cancelled) setRoute(r);
     });
     if (activeRide.rider_id) {
@@ -346,7 +365,32 @@ export function CaptainProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [activeRide?.id, activeRide?.rider_id, activeRide?.pickup_lat, activeRide?.dropoff_lat]);
+  }, [activeRide?.id, activeRide?.status, activeRide?.rider_id, activeRide?.pickup_lat, activeRide?.dropoff_lat]);
+
+  useEffect(() => {
+    if (!activeRide?.id || location?.lat == null || location?.lng == null) return undefined;
+    const target =
+      activeRide.status === "in_progress"
+        ? { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng }
+        : { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
+    if (target.lat == null || target.lng == null) return undefined;
+    const current = routeRef.current;
+    if (current?.path?.length > 1 && !isOffRoute(location, current.path, 0.08)) return undefined;
+    if (reroutingRef.current || Date.now() - rerouteAtRef.current < 6000) return undefined;
+    let cancelled = false;
+    reroutingRef.current = true;
+    getRoute(location, target).then((next) => {
+      if (!cancelled && next?.path?.length > 1) {
+        rerouteAtRef.current = Date.now();
+        setRoute(next);
+      }
+    }).finally(() => {
+      reroutingRef.current = false;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [location?.lat, location?.lng, activeRide?.id, activeRide?.status, activeRide?.pickup_lat, activeRide?.dropoff_lat]);
 
   async function patchDriver(fields) {
     if (!driver?.id) return null;

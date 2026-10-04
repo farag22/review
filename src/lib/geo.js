@@ -242,13 +242,17 @@ export async function searchPlaces(query) {
   return mergePlaces(remote, local);
 }
 
+function routeUrl(points) {
+  const coords = points.map((p) => `${p.lng},${p.lat}`).join(";");
+  const radiuses = points.map(() => "80").join(";");
+  return `${OSRM}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true&continue_straight=false&radiuses=${radiuses}`;
+}
+
 export async function getRoute(from, to, extras = []) {
   const points = [from, ...extras, to].filter((p) => p && p.lat != null && p.lng != null);
   if (points.length < 2) return null;
-  const coords = points.map((p) => `${p.lng},${p.lat}`).join(";");
-  const url = `${OSRM}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
   try {
-    const data = await fetchJson(url, 6000);
+    const data = await fetchJson(routeUrl(points), 7000);
     const route = data.routes?.[0];
     if (!route) return fallbackRoute(points);
     return {
@@ -259,6 +263,21 @@ export async function getRoute(from, to, extras = []) {
   } catch {
     return fallbackRoute(points);
   }
+}
+
+export function pathPointDistanceKm(point, path) {
+  if (!point || !path?.length) return Infinity;
+  let minKm = Infinity;
+  for (let i = 0; i < path.length; i += 1) {
+    const a = Array.isArray(path[i]) ? { lat: path[i][0], lng: path[i][1] } : path[i];
+    const d = haversineKm(point, a);
+    if (d < minKm) minKm = d;
+  }
+  return minKm;
+}
+
+export function isOffRoute(point, path, thresholdKm = 0.07) {
+  return pathPointDistanceKm(point, path) > thresholdKm;
 }
 
 function fallbackRoute(points) {

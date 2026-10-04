@@ -137,12 +137,13 @@ export default function MapView({
   });
   const lastFitRef = useRef("");
   const followRef = useRef(follow);
+  const pausedRef = useRef(false);
   const clickRef = useRef(onMapClick);
   const pickupDragRef = useRef(onPickupDrag);
   const destDragRef = useRef(onDestinationDrag);
   const pinClickRef = useRef(onRidePinClick);
   const pointsRef = useRef({ pickup, destination, driver, path, userLocation, ridePins });
-  
+
   followRef.current = follow;
   clickRef.current = onMapClick;
   pickupDragRef.current = onPickupDrag;
@@ -192,6 +193,9 @@ export default function MapView({
     map.on("click", (e) => {
       if (!clickRef.current) return;
       clickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
+    });
+    map.on("dragstart", () => {
+      if (followRef.current) pausedRef.current = true;
     });
 
     const resize = () => map.invalidateSize({ animate: false });
@@ -334,38 +338,43 @@ export default function MapView({
     });
 
     const pad = fitPadding || { padding: [48, 48] };
-    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${userKey}|${requestsKey}|${JSON.stringify(pad)}`;
-    if (fitKey !== lastFitRef.current) {
-      lastFitRef.current = fitKey;
-      const bounds = [];
-      if (pickup?.lat != null) bounds.push([pickup.lat, pickup.lng]);
-      if (destination?.lat != null) bounds.push([destination.lat, destination.lng]);
-      if (path?.length > 1) path.forEach((p) => bounds.push(Array.isArray(p) ? p : [p.lat, p.lng]));
-      (ridePins || []).forEach((p) => {
-        if (p.lat != null) bounds.push([p.lat, p.lng]);
-      });
-      if (!bounds.length && driver?.lat != null) bounds.push([driver.lat, driver.lng]);
-      if (!bounds.length && gpsPoint) bounds.push([gpsPoint.lat, gpsPoint.lng]);
-      if (bounds.length > 1) {
-        map.fitBounds(bounds, { maxZoom: 17, animate: false, ...pad });
-      } else if (bounds.length === 1) {
-        map.setView(bounds[0], 16, { animate: false });
+    const followTarget = followRef.current && !(ridePins || []).length ? driver || gpsPoint : null;
+    if (followTarget?.lat != null) {
+      if (!pausedRef.current) {
+        const zoom = Math.max(map.getZoom() || 16, 16);
+        map.setView([followTarget.lat, followTarget.lng], zoom, { animate: true });
       }
-      setTimeout(() => map.invalidateSize({ animate: false }), 50);
-    } else if (followRef.current && driver?.lat != null) {
-      map.panTo([driver.lat, driver.lng], { animate: true, duration: 0.35 });
-    } else if (followRef.current && gpsPoint) {
-      map.panTo([gpsPoint.lat, gpsPoint.lng], { animate: true, duration: 0.35 });
-    } else if (userLocation?.lat != null && !destination?.lat && !pickup?.lat) {
-      map.setView([userLocation.lat, userLocation.lng], map.getZoom() || 16, { animate: true });
+    } else {
+      const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${requestsKey}|${JSON.stringify(pad)}`;
+      if (fitKey !== lastFitRef.current) {
+        lastFitRef.current = fitKey;
+        const bounds = [];
+        if (pickup?.lat != null) bounds.push([pickup.lat, pickup.lng]);
+        if (destination?.lat != null) bounds.push([destination.lat, destination.lng]);
+        if (path?.length > 1) path.forEach((p) => bounds.push(Array.isArray(p) ? p : [p.lat, p.lng]));
+        (ridePins || []).forEach((p) => {
+          if (p.lat != null) bounds.push([p.lat, p.lng]);
+        });
+        if (!bounds.length && driver?.lat != null) bounds.push([driver.lat, driver.lng]);
+        if (!bounds.length && gpsPoint) bounds.push([gpsPoint.lat, gpsPoint.lng]);
+        if (bounds.length > 1) {
+          map.fitBounds(bounds, { maxZoom: 17, animate: false, ...pad });
+        } else if (bounds.length === 1) {
+          map.setView(bounds[0], 16, { animate: false });
+        }
+        setTimeout(() => map.invalidateSize({ animate: false }), 50);
+      } else if (userLocation?.lat != null && !destination?.lat && !pickup?.lat) {
+        map.setView([userLocation.lat, userLocation.lng], map.getZoom() || 16, { animate: true });
+      }
     }
   }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy]);
 
   function recenter() {
     const map = mapRef.current;
-    const target = userLocation || driver || pickup;
+    const target = driver || userLocation || pickup;
     if (!map || target?.lat == null) return;
-    map.flyTo([target.lat, target.lng], 17, { duration: 0.45 });
+    pausedRef.current = false;
+    map.flyTo([target.lat, target.lng], Math.max(map.getZoom() || 16, 16), { duration: 0.45 });
   }
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;
@@ -400,7 +409,7 @@ export default function MapView({
           type="button"
           onClick={recenter}
           className="sd-overlay-btn absolute bottom-3 right-3 z-20 w-11 h-11 rounded-full bg-white shadow-[0_8px_20px_rgba(15,23,42,0.18)] border border-black/5 flex items-center justify-center"
-          aria-label="موقعي"
+          aria-label="إعادة التمركز"
         >
           <span className="sd-gps-btn" />
         </button>
