@@ -15,7 +15,7 @@ const STEPS = [
 
 export default function CaptainActiveRide() {
   const navigate = useNavigate();
-  const { driver, location, activeRide, route, riderProfile, updateActiveStatus, refreshLocation } = useCaptain();
+  const { driver, location, activeRide, route, riderProfile, updateActiveStatus, cancelActiveRide, refreshLocation } = useCaptain();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(null);
@@ -93,6 +93,19 @@ export default function CaptainActiveRide() {
     }
   }
 
+  async function handleCancel() {
+    setError("");
+    setBusy(true);
+    try {
+      await cancelActiveRide();
+      navigate("/captain/dashboard", { replace: true });
+    } catch (err) {
+      setError(err.message || "تعذر إلغاء الرحلة");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="ride-live">
       <div className="ride-live-map">
@@ -147,6 +160,15 @@ export default function CaptainActiveRide() {
         <PrimaryButton onClick={handleNext} disabled={busy}>
           {busy ? "جاري التحديث..." : step.label}
         </PrimaryButton>
+
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={busy}
+          className="w-full rounded-xl border border-red-200 bg-red-50 py-3 text-center text-[13px] font-bold text-red-600 disabled:opacity-50"
+        >
+          إلغاء الرحلة والعودة للطلبات
+        </button>
 
         <button
           onClick={() => navigate("/captain/dashboard")}
