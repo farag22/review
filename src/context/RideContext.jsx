@@ -299,8 +299,14 @@ export function RideProvider({ children }) {
     const patch = { status, ...extra };
     if (status === "in_progress") patch.started_at = new Date().toISOString();
     if (status === "completed") patch.completed_at = new Date().toISOString();
-    const { data, error } = await supabase.from("rides").update(patch).eq("id", activeRide.id).select().single();
+    const { data, error } = await supabase
+      .from("rides")
+      .update(patch)
+      .eq("id", activeRide.id)
+      .select()
+      .maybeSingle();
     if (error) throw new Error(mapRideError(error, "تعذر تحديث الرحلة"));
+    if (!data) throw new Error("تعذر بدء الرحلة: الرحلة غير موجودة أو لا يمكن تحديث حالتها");
     setActiveRide(data);
     activeRideRef.current = data;
     if (status === "completed" || status === "cancelled") await refreshWallet();

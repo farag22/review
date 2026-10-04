@@ -405,55 +405,17 @@ export function CaptainProvider({ children }) {
 
   async function updateActiveStatus(status) {
     if (!activeRide?.id || !driver?.id) return null;
-    const patch = { status };
-    if (status === "arrived") patch.arrived_at = new Date().toISOString();
-    if (status === "in_progress") patch.started_at = new Date().toISOString();
-    if (status === "completed") {
-      const pickup = { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
-      const dropoff = { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng };
-      const computed = await getRoute(pickup, dropoff);
-      const distanceKm = computed?.distanceKm || haversineKm(pickup, dropoff);
-      const durationMin =
-        computed?.durationMin ||
-        Math.max(1, Math.round((distanceKm / 28) * 60));
-      const type =
-        rideTypes.find((t) => t.id === activeRide.ride_type) || {
-          base_fare: 12,
-          per_km: 4.5,
-          per_min: 0.35,
-        };
-      patch.completed_at = new Date().toISOString();
-      patch.distance_km = Number(distanceKm.toFixed(2));
-      patch.duration_min = durationMin;
-      patch.fare = calcFare(type, distanceKm, durationMin);
-      if (activeRide.started_at) {
-        const elapsed = Math.max(
-          1,
-          Math.round((Date.now() - new Date(activeRide.started_at).getTime()) / 60000)
-        );
-        patch.duration_min = elapsed;
-        patch.fare = calcFare(type, distanceKm, elapsed);
-      }
+    if (!["arrived", "in_progress", "completed", "cancelled"].includes(status)) {
+      throw new Error("حالة الرحلة غير مسموحة");
     }
 
-    let { data, error: updateError } = await supabase
-      .from("rides")
-      .update(patch)
-      .eq("id", activeRide.id)
-      .eq("driver_id", driver.id)
-      .select()
-      .single();
-    if (updateError && /arrived_at|distance_km|duration_min/i.test(updateError.message || "")) {
-      const { arrived_at, distance_km, duration_min, ...legacy } = patch;
-      ({ data, error: updateError } = await supabase
-        .from("rides")
-        .update(legacy)
-        .eq("id", activeRide.id)
-        .eq("driver_id", driver.id)
-        .select()
-        .single());
-    }
+    const { data: rpcData, error: updateError } = await supabase.rpc(
+      "captain_update_ride_status",
+      { p_ride_id: activeRide.id, p_status: status }
+    );
     if (updateError) throw new Error(mapCaptainError(updateError, "تعذر تحديث حالة الرحلة"));
+    const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    if (!data) throw new Error("تعذر تحديث حالة الرحلة: لم تُرجع قاعدة البيانات سجل الرحلة");
     if (status === "completed") {
       setActiveRide(null);
       await Promise.all([loadDriverDebt(), refreshTodayEarnings()]);
