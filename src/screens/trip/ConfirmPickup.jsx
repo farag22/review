@@ -11,6 +11,7 @@ export default function ConfirmPickup() {
   const navigate = useNavigate();
   const { pickup, destination, driver, refreshDriver, activeRide, updateRideStatus, cancelRide, route, setActiveRide } = useRide();
   const [error, setError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const driverId = activeRide?.driver_id;
@@ -85,8 +86,16 @@ export default function ConfirmPickup() {
   }
 
   async function handleCancel() {
-    await cancelRide();
-    navigate("/choose-ride");
+    setError("");
+    setCancelling(true);
+    try {
+      await cancelRide();
+      navigate("/choose-ride", { replace: true });
+    } catch (err) {
+      setError(err.message || "تعذر إلغاء الطلب");
+    } finally {
+      setCancelling(false);
+    }
   }
 
   const name = driver?.full_name || "جاري تحديد السائق";
@@ -149,10 +158,12 @@ export default function ConfirmPickup() {
 
         <div className="grid grid-cols-2 gap-3">
           <button
+            type="button"
             onClick={handleCancel}
-            className="h-12 rounded-2xl border border-red-200 text-red-500 font-bold text-[13px]"
+            disabled={cancelling}
+            className="h-12 rounded-2xl border border-red-200 text-red-500 font-bold text-[13px] disabled:opacity-50"
           >
-            إلغاء الطلب
+            {cancelling ? "جاري الإلغاء..." : "إلغاء الطلب"}
           </button>
           <PrimaryButton onClick={startTrip} className="h-12" disabled={!driver}>
             بدء الرحلة

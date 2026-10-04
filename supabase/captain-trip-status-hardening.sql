@@ -107,4 +107,37 @@ create trigger trg_prevent_captain_terminal_field_tampering
 before update on public.rides
 for each row execute function public.prevent_captain_terminal_field_tampering();
 
+-- Rider cancellation follows the same server-side path so RLS cannot make
+-- the UI look successful while silently rejecting the update.
+create or replace function public.rider_cancel_ride(p_ride_id uuid)
+returns public.rides
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ride public.rides;
+begin
+  if auth.uid() is null then
+    raise exception 'يجب تسجيل الدخول لإلغاء الرحلة';
+  end if;
+
+  update public.rides
+  set status = 'cancelled'
+  where id = p_ride_id
+    and rider_id = auth.uid()
+    and status in ('requested', 'accepted', 'arriving', 'arrived', 'in_progress');
+
+  if not found then
+    raise exception 'لا يمكن إلغاء الرحلة في حالتها الحالية';
+  end if;
+
+  select * into v_ride from public.rides where id = p_ride_id;
+  return v_ride;
+end;
+$$;
+
+revoke execute on function public.rider_cancel_ride(uuid) from anon;
+grant execute on function public.rider_cancel_ride(uuid) to authenticated;
+
 commit;

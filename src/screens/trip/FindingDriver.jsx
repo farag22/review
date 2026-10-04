@@ -9,6 +9,8 @@ export default function FindingDriver() {
   const navigate = useNavigate();
   const { pickup, destination, selectedRide, activeRide, cancelRide, refreshDriver, setActiveRide } = useRide();
   const [status, setStatus] = useState(activeRide?.status || "requested");
+  const [cancelling, setCancelling] = useState(false);
+  const [error, setError] = useState("");
   const mapPickup = useMemo(
     () =>
       activeRide?.pickup_lat != null
@@ -66,8 +68,16 @@ export default function FindingDriver() {
   }, [activeRide?.id]);
 
   async function handleCancel() {
-    await cancelRide();
-    navigate("/choose-ride");
+    setError("");
+    setCancelling(true);
+    try {
+      await cancelRide();
+      navigate("/choose-ride", { replace: true });
+    } catch (err) {
+      setError(err.message || "تعذر إلغاء الطلب");
+    } finally {
+      setCancelling(false);
+    }
   }
 
   return (
@@ -94,6 +104,7 @@ export default function FindingDriver() {
         <p className="text-center text-ink/50 text-[13px] mt-1">
           {selectedRide?.label || "رحلتك"} · {destination?.label || ""}
         </p>
+        {error && <p className="mt-3 text-center text-red-500 text-[13px]">{error}</p>}
 
         <div className="flex justify-center gap-2 my-6">
           {[0, 1, 2].map((i) => (
@@ -105,11 +116,13 @@ export default function FindingDriver() {
           ))}
         </div>
 
-        <button
-          onClick={handleCancel}
-          className="w-full h-12 rounded-2xl border border-red-200 text-red-500 font-bold text-[14px]"
-        >
-          إلغاء الطلب
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="w-full h-12 rounded-2xl border border-red-200 text-red-500 font-bold text-[14px] disabled:opacity-50"
+          >
+            {cancelling ? "جاري الإلغاء..." : "إلغاء الطلب"}
         </button>
       </div>
 

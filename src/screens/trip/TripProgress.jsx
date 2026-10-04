@@ -30,6 +30,7 @@ export default function TripProgress() {
     setActiveRide,
   } = useRide();
   const [error, setError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const driverId = activeRide?.driver_id || driver?.id;
@@ -112,8 +113,16 @@ export default function TripProgress() {
   }
 
   async function emergencyCancel() {
-    await cancelRide();
-    navigate("/home");
+    setError("");
+    setCancelling(true);
+    try {
+      await cancelRide();
+      navigate("/home", { replace: true });
+    } catch (err) {
+      setError(err.message || "تعذر إلغاء الرحلة");
+    } finally {
+      setCancelling(false);
+    }
   }
 
   return (
@@ -178,10 +187,12 @@ export default function TripProgress() {
 
         <div className="grid grid-cols-2 gap-3 pt-1">
           <button
+            type="button"
             onClick={emergencyCancel}
-            className="h-12 rounded-2xl border border-red-200 text-red-500 font-bold text-[13px]"
+            disabled={cancelling}
+            className="h-12 rounded-2xl border border-red-200 text-red-500 font-bold text-[13px] disabled:opacity-50"
           >
-            طوارئ
+            {cancelling ? "جاري الإلغاء..." : "إلغاء الرحلة"}
           </button>
           <button
             onClick={finishTrip}

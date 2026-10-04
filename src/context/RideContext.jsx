@@ -355,13 +355,17 @@ export function RideProvider({ children }) {
   }
 
   async function cancelRide() {
-    if (activeRide?.id) {
-      await supabase.from("rides").update({ status: "cancelled" }).eq("id", activeRide.id);
-    }
+    if (!activeRide?.id) return null;
+    const { data: rpcData, error: cancelError } = await supabase.rpc("rider_cancel_ride", {
+      p_ride_id: activeRide.id,
+    });
+    if (cancelError) throw new Error(mapRideError(cancelError, "تعذر إلغاء الرحلة"));
+    const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
     setActiveRide(null);
     activeRideRef.current = null;
     setDriver(null);
     await refreshWallet();
+    return data || null;
   }
 
   async function savePlace({ label, place }) {
