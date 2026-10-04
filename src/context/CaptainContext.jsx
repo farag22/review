@@ -409,10 +409,38 @@ export function CaptainProvider({ children }) {
       throw new Error("حالة الرحلة غير مسموحة");
     }
 
-    const { data: rpcData, error: updateError } = await supabase.rpc(
-      "captain_update_ride_status",
-      { p_ride_id: activeRide.id, p_status: status }
-    );
+    let distanceKm = null;
+    let durationMin = null;
+    let fare = null;
+    if (status === "completed") {
+      const pickup = { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
+      const dropoff = { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng };
+      const computed = await getRoute(pickup, dropoff);
+      distanceKm = computed?.distanceKm || haversineKm(pickup, dropoff);
+      durationMin =
+        computed?.durationMin || Math.max(1, Math.round((distanceKm / 28) * 60));
+      if (activeRide.started_at) {
+        durationMin = Math.max(
+          1,
+          Math.round((Date.now() - new Date(activeRide.started_at).getTime()) / 60000)
+        );
+      }
+      const type =
+        rideTypes.find((t) => t.id === activeRide.ride_type) || {
+          base_fare: 12,
+          per_km: 4.5,
+          per_min: 0.35,
+        };
+      fare = calcFare(type, distanceKm, durationMin);
+    }
+
+    const { data: rpcData, error: updateError } = await supabase.rpc("captain_update_ride_progress", {
+      p_ride_id: activeRide.id,
+      p_status: status,
+      p_distance_km: distanceKm == null ? null : Number(distanceKm.toFixed(2)),
+      p_duration_min: durationMin,
+      p_fare: fare,
+    });
     if (updateError) throw new Error(mapCaptainError(updateError, "تعذر تحديث حالة الرحلة"));
     const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
     if (!data) throw new Error("تعذر تحديث حالة الرحلة: لم تُرجع قاعدة البيانات سجل الرحلة");
