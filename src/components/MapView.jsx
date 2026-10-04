@@ -17,29 +17,45 @@ const TILE_LAYERS = [
   },
 ];
 
+const DEFAULT_CENTER = { lat: 30.466, lng: 31.185 };
+const DEFAULT_ZOOM = 16;
+
+function number(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pointOf(point) {
+  const lat = number(point?.lat ?? point?.[0]);
+  const lng = number(point?.lng ?? point?.[1]);
+  return lat == null || lng == null ? null : { lat, lng };
+}
+
+function pathOf(path) {
+  if (!Array.isArray(path)) return [];
+  return path.map(pointOf).filter(Boolean).map((p) => [p.lat, p.lng]);
+}
+
 function pointKey(point) {
-  if (!point || point.lat == null || point.lng == null) return "";
-  return `${Number(point.lat).toFixed(5)},${Number(point.lng).toFixed(5)}`;
-}
-
-function samePoint(a, b) {
-  return pointKey(a) === pointKey(b);
-}
-
-function routePathKey(path) {
-  if (!path || path.length < 2) return "";
-  const a = path[0];
-  const b = path[path.length - 1];
-  const lat0 = Number(Array.isArray(a) ? a[0] : a.lat).toFixed(4);
-  const lng0 = Number(Array.isArray(a) ? a[1] : a.lng).toFixed(4);
-  const lat1 = Number(Array.isArray(b) ? b[0] : b.lat).toFixed(4);
-  const lng1 = Number(Array.isArray(b) ? b[1] : b.lng).toFixed(4);
-  return `${path.length}:${lat0},${lng0}:${lat1},${lng1}`;
+  const p = pointOf(point);
+  return p ? `${p.lat.toFixed(5)},${p.lng.toFixed(5)}` : "";
 }
 
 function pinsKey(pins) {
-  if (!pins?.length) return "";
-  return pins.map((p) => `${p.id}:${pointKey(p)}`).join("|");
+  if (!Array.isArray(pins)) return "";
+  return pins.map((p) => `${p?.id || ""}:${pointKey(p)}`).join("|");
+}
+
+function headingOf(point) {
+  const heading = Number(point?.heading);
+  return Number.isFinite(heading) && heading >= 0 ? heading % 360 : null;
+}
+
+function shortestTurn(from, to) {
+  let delta = to - from;
+  while (delta > 180) delta -= 360;
+  while (delta < -180) delta += 360;
+  return delta;
 }
 
 function pinIcon(color, label, live) {
@@ -50,10 +66,7 @@ function pinIcon(color, label, live) {
     className: "sd-marker",
     html: `<div style="position:relative;width:30px;height:30px;">
       ${pulse}
-      <div style="
-        width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
-        background:${color};border:2px solid #fff;box-shadow:0 4px 10px rgba(15,23,42,.28);
-        display:flex;align-items:center;justify-content:center;">
+      <div style="width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${color};border:2px solid #fff;box-shadow:0 4px 10px rgba(15,23,42,.28);display:flex;align-items:center;justify-content:center;">
         <span style="transform:rotate(45deg);color:#fff;font:700 11px Cairo,sans-serif">${label || ""}</span>
       </div>
     </div>`,
@@ -65,33 +78,18 @@ function pinIcon(color, label, live) {
 function userDotIcon() {
   return L.divIcon({
     className: "sd-marker",
-    html: `<div class="sd-user-dot">
-      <span class="sd-user-dot-pulse"></span>
-      <span class="sd-user-dot-core"></span>
-    </div>`,
+    html: `<div class="sd-user-dot"><span class="sd-user-dot-pulse"></span><span class="sd-user-dot-core"></span></div>`,
     iconSize: [22, 22],
     iconAnchor: [11, 11],
   });
 }
 
-function headingOf(point) {
-  const value = point?.heading;
-  return Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-function shortestTurn(from, to) {
-  let delta = to - from;
-  while (delta > 180) delta -= 360;
-  while (delta < -180) delta += 360;
-  return delta;
-}
-
 function carIcon(heading, mapRotated) {
-  const rot = mapRotated ? 0 : headingOf({ heading }) || 0;
+  const rotation = mapRotated ? 0 : headingOf({ heading }) || 0;
   return L.divIcon({
     className: "sd-marker",
-    html: `<div style="width:36px;height:36px;transform:rotate(${rot}deg);filter:drop-shadow(0 3px 6px rgba(15,23,42,.35))">
-      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+    html: `<div style="width:36px;height:36px;transform:rotate(${rotation}deg);filter:drop-shadow(0 3px 6px rgba(15,23,42,.35))">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
         <circle cx="18" cy="18" r="16" fill="#1d4ed8" stroke="#fff" stroke-width="2"/>
         <path d="M18 8l7 18-7-4-7 4z" fill="#fff"/>
       </svg>
@@ -108,6 +106,15 @@ function requestIcon(label) {
     iconSize: [54, 28],
     iconAnchor: [27, 28],
   });
+}
+
+function safeRemove(map, layer) {
+  if (!map || !layer) return;
+  try {
+    map.removeLayer(layer);
+  } catch {
+    // The map may already be unmounted.
+  }
 }
 
 export default function MapView({
@@ -135,30 +142,24 @@ export default function MapView({
 }) {
   const wrapRef = useRef(null);
   const mapRef = useRef(null);
-  const layersRef = useRef({
-    markers: null,
-    pins: null,
-    route: null,
-    routeGlow: null,
-    pickup: null,
-    destination: null,
-    driver: null,
-    user: null,
-    accuracy: null,
-  });
-  const lastFitRef = useRef("");
+  const layersRef = useRef({ markers: null, pins: null, route: null, routeGlow: null, pickup: null, destination: null, driver: null, user: null, accuracy: null });
   const followRef = useRef(follow);
+  const interactiveRef = useRef(interactive);
   const pausedRef = useRef(false);
+  const viewInitializedRef = useRef(false);
+  const bearingRef = useRef(0);
+  const bearingFrameRef = useRef(null);
   const clickRef = useRef(onMapClick);
   const pickupDragRef = useRef(onPickupDrag);
-  const destDragRef = useRef(onDestinationDrag);
+  const destinationDragRef = useRef(onDestinationDrag);
   const pinClickRef = useRef(onRidePinClick);
   const pointsRef = useRef({ pickup, destination, driver, path, userLocation, ridePins });
 
-  followRef.current = follow;
+  followRef.current = Boolean(follow);
+  interactiveRef.current = Boolean(interactive);
   clickRef.current = onMapClick;
   pickupDragRef.current = onPickupDrag;
-  destDragRef.current = onDestinationDrag;
+  destinationDragRef.current = onDestinationDrag;
   pinClickRef.current = onRidePinClick;
   pointsRef.current = { pickup, destination, driver, path, userLocation, ridePins };
 
@@ -166,343 +167,248 @@ export default function MapView({
   const destinationKey = pointKey(destination);
   const driverKey = pointKey(driver);
   const userKey = pointKey(userLocation);
-  const pathKey = routePathKey(path);
+  const pathKey = pathOf(path).map((p) => p.join(",")).join("|");
   const requestsKey = pinsKey(ridePins);
   const headingKey = Math.round(headingOf(driver) ?? headingOf(userLocation) ?? 0);
 
   useEffect(() => {
     if (!wrapRef.current || mapRef.current) return undefined;
-    const el = wrapRef.current;
-    if (el._leaflet_id) {
-      el._leaflet_id = null;
-    }
-    const center = userLocation || pickup || driver || { lat: 30.466, lng: 31.185 };
+    const element = wrapRef.current;
     let map;
+    const center = pointOf(userLocation) || pointOf(pickup) || pointOf(driver) || DEFAULT_CENTER;
+
     try {
-      map = L.map(el, {
+      map = L.map(element, {
         zoomControl: false,
         attributionControl: true,
-        dragging: interactive,
-        scrollWheelZoom: interactive,
-        doubleClickZoom: interactive,
-        touchZoom: interactive,
-        boxZoom: interactive,
-        keyboard: interactive,
-        rotate: typeof L.map.prototype.setBearing === "function",
+        dragging: interactiveRef.current,
+        scrollWheelZoom: interactiveRef.current,
+        doubleClickZoom: interactiveRef.current,
+        touchZoom: interactiveRef.current,
+        boxZoom: interactiveRef.current,
+        keyboard: interactiveRef.current,
+        rotate: true,
         bearing: 0,
         rotateControl: false,
         compassBearing: false,
-        touchRotate: interactive,
+        touchRotate: interactiveRef.current,
         shiftKeyRotate: false,
-      }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
+        zoomAnimation: true,
+        fadeAnimation: true,
+        markerZoomAnimation: true,
+      }).setView([center.lat, center.lng], DEFAULT_ZOOM, { animate: false });
     } catch {
+      // A malformed plugin must never produce a white screen.
       try {
-        map = L.map(el, {
+        map = L.map(element, {
           zoomControl: false,
           attributionControl: true,
-          dragging: interactive,
-          scrollWheelZoom: interactive,
-          doubleClickZoom: interactive,
-          touchZoom: interactive,
-          boxZoom: interactive,
-          keyboard: interactive,
-        }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
+          dragging: interactiveRef.current,
+          scrollWheelZoom: interactiveRef.current,
+          doubleClickZoom: interactiveRef.current,
+          touchZoom: interactiveRef.current,
+          boxZoom: interactiveRef.current,
+          keyboard: interactiveRef.current,
+        }).setView([center.lat, center.lng], DEFAULT_ZOOM, { animate: false });
       } catch {
         return undefined;
       }
     }
-    const first = TILE_LAYERS[0];
-    const tiles = L.tileLayer(first.url, {
-      attribution: first.attr,
-      maxZoom: 20,
-      detectRetina: true,
-    }).addTo(map);
-    let tileIndex = 0;
-    tiles.on("tileerror", () => {
-      if (tileIndex >= TILE_LAYERS.length - 1) return;
-      tileIndex += 1;
-      const next = TILE_LAYERS[tileIndex];
-      L.tileLayer(next.url, { attribution: next.attr, maxZoom: 19 }).addTo(map);
+
+    const tileLayer = L.tileLayer(TILE_LAYERS[0].url, { attribution: TILE_LAYERS[0].attr, maxZoom: 20, detectRetina: true }).addTo(map);
+    let fallbackIndex = 0;
+    tileLayer.on("tileerror", () => {
+      if (fallbackIndex >= TILE_LAYERS.length - 1 || !mapRef.current) return;
+      fallbackIndex += 1;
+      const fallback = TILE_LAYERS[fallbackIndex];
+      L.tileLayer(fallback.url, { attribution: fallback.attr, maxZoom: 20, detectRetina: true }).addTo(map);
     });
-    if (interactive) L.control.zoom({ position: "topleft" }).addTo(map);
+
+    if (interactiveRef.current) L.control.zoom({ position: "topleft" }).addTo(map);
     layersRef.current.markers = L.layerGroup().addTo(map);
     layersRef.current.pins = L.layerGroup().addTo(map);
     mapRef.current = map;
 
-    map.on("click", (e) => {
-      if (!clickRef.current) return;
-      clickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
-    });
-    map.on("dragstart", () => {
+    map.on("click", (event) => clickRef.current?.({ lat: event.latlng.lat, lng: event.latlng.lng }));
+    const pauseFollowing = () => {
       if (followRef.current) pausedRef.current = true;
-    });
+    };
+    map.on("dragstart", pauseFollowing);
+    map.on("zoomstart", pauseFollowing);
+    map.on("rotatestart", pauseFollowing);
 
     const resize = () => {
-      try {
-        map.invalidateSize({ animate: false });
-      } catch {
-        /* map already removed */
-      }
+      try { map.invalidateSize({ animate: false }); } catch { /* unmounted */ }
     };
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
-    if (ro && wrapRef.current) ro.observe(wrapRef.current);
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
+    resizeObserver?.observe(element);
     window.addEventListener("resize", resize);
-    const t1 = setTimeout(resize, 80);
-    const t2 = setTimeout(resize, 400);
+    const resizeTimer1 = setTimeout(resize, 80);
+    const resizeTimer2 = setTimeout(resize, 400);
 
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
+      clearTimeout(resizeTimer1);
+      clearTimeout(resizeTimer2);
+      if (bearingFrameRef.current) cancelAnimationFrame(bearingFrameRef.current);
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", resize);
-      try {
-        ro?.disconnect();
-      } catch {
-        /* ignore */
-      }
-      try {
-        map.remove();
-      } catch {
-        /* ignore */
-      }
+      try { map.remove(); } catch { /* already removed */ }
       mapRef.current = null;
+      layersRef.current = { markers: null, pins: null, route: null, routeGlow: null, pickup: null, destination: null, driver: null, user: null, accuracy: null };
     };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const toggle = interactive ? "enable" : "disable";
-    try {
-      map.dragging?.[toggle]?.();
-      map.scrollWheelZoom?.[toggle]?.();
-      map.doubleClickZoom?.[toggle]?.();
-      map.touchZoom?.[toggle]?.();
-    } catch {
-      /* map already removed */
-    }
+    ["dragging", "scrollWheelZoom", "doubleClickZoom", "touchZoom", "boxZoom", "keyboard"].forEach((name) => {
+      try {
+        const control = map[name];
+        if (!control) return;
+        interactive ? control.enable() : control.disable();
+      } catch { /* plugin control unavailable */ }
+    });
   }, [interactive]);
 
   useEffect(() => {
     const map = mapRef.current;
     const layers = layersRef.current;
     if (!map || !layers.markers) return;
-    const { pickup, destination, driver, path, userLocation, ridePins } = pointsRef.current;
+    const current = pointsRef.current;
+    const currentPath = pathOf(current.path);
+    const gps = pointOf(current.userLocation);
+    const pickupPoint = pointOf(current.pickup);
+    const destinationPoint = pointOf(current.destination);
+    const driverPoint = pointOf(current.driver);
 
-    function upsert(kind, point, icon, draggable, onDrag) {
-      if (!point || point.lat == null || point.lng == null) {
-        if (layers[kind]) {
-          layers.markers.removeLayer(layers[kind]);
-          layers[kind] = null;
-        }
+    const upsert = (kind, point, icon, draggable, onDrag) => {
+      if (!point) {
+        safeRemove(map, layers[kind]);
+        layers[kind] = null;
         return;
       }
-      const latlng = [point.lat, point.lng];
+      const latLng = [point.lat, point.lng];
       if (layers[kind]) {
-        layers[kind].setLatLng(latlng);
+        layers[kind].setLatLng(latLng);
         layers[kind].setIcon(icon);
-        if (draggable) layers[kind].dragging?.enable();
-        else layers[kind].dragging?.disable();
-      } else {
-        const marker = L.marker(latlng, { icon, draggable: Boolean(draggable), autoPan: true });
-        if (onDrag) {
-          marker.on("dragend", (e) => {
-            const pos = e.target.getLatLng();
-            onDrag({ lat: pos.lat, lng: pos.lng });
-          });
-        }
-        marker.addTo(layers.markers);
-        layers[kind] = marker;
+        draggable ? layers[kind].dragging?.enable() : layers[kind].dragging?.disable();
+        return;
       }
-    }
+      const marker = L.marker(latLng, { icon, draggable: Boolean(draggable), autoPan: true });
+      if (onDrag) marker.on("dragend", (event) => {
+        const position = event.target.getLatLng();
+        onDrag({ lat: position.lat, lng: position.lng });
+      });
+      marker.addTo(layers.markers);
+      layers[kind] = marker;
+    };
 
-    const gpsPoint = userLocation && userLocation.lat != null ? userLocation : null;
-    const showUserDot = gpsPoint && !samePoint(gpsPoint, pickup) && !samePoint(gpsPoint, driver);
-    upsert("user", showUserDot ? gpsPoint : null, userDotIcon(), false);
-    upsert(
-      "pickup",
-      pickup,
-      pinIcon("#059669", "أ", false),
-      Boolean(pickupDragRef.current),
-      (pt) => pickupDragRef.current?.(pt)
-    );
-    upsert(
-      "destination",
-      destination,
-      pinIcon("#dc2626", "ب", false),
-      Boolean(destDragRef.current),
-      (pt) => destDragRef.current?.(pt)
-    );
-    const followHeading = headingOf(driver) ?? headingOf(gpsPoint);
-    const mapRotated = Boolean(followRef.current && Number.isFinite(followHeading));
-    upsert("driver", driver, carIcon(driver?.heading, mapRotated), false);
+    const showUser = gps && pointKey(gps) !== pointKey(pickupPoint) && pointKey(gps) !== pointKey(driverPoint);
+    upsert("user", showUser ? gps : null, userDotIcon(), false);
+    upsert("pickup", pickupPoint, pinIcon("#059669", "أ", false), Boolean(pickupDragRef.current), pickupDragRef.current);
+    upsert("destination", destinationPoint, pinIcon("#dc2626", "ب", false), Boolean(destinationDragRef.current), destinationDragRef.current);
+    const heading = headingOf(current.driver) ?? headingOf(gps);
+    upsert("driver", driverPoint, carIcon(current.driver?.heading, followRef.current && heading != null), false);
 
-    if (showAccuracy && gpsPoint?.accuracy > 8 && gpsPoint.accuracy < 250) {
+    if (showAccuracy && gps && Number(current.userLocation?.accuracy) > 8 && Number(current.userLocation?.accuracy) < 250) {
       if (layers.accuracy) {
-        layers.accuracy.setLatLng([gpsPoint.lat, gpsPoint.lng]);
-        layers.accuracy.setRadius(gpsPoint.accuracy);
+        layers.accuracy.setLatLng([gps.lat, gps.lng]);
+        layers.accuracy.setRadius(Number(current.userLocation.accuracy));
       } else {
-        layers.accuracy = L.circle([gpsPoint.lat, gpsPoint.lng], {
-          radius: gpsPoint.accuracy,
-          color: "#2563eb",
-          weight: 1,
-          fillColor: "#3b82f6",
-          fillOpacity: 0.12,
-        }).addTo(map);
+        layers.accuracy = L.circle([gps.lat, gps.lng], { radius: Number(current.userLocation.accuracy), color: "#2563eb", weight: 1, fillColor: "#3b82f6", fillOpacity: 0.12 }).addTo(map);
       }
     } else if (layers.accuracy) {
-      map.removeLayer(layers.accuracy);
+      safeRemove(map, layers.accuracy);
       layers.accuracy = null;
     }
 
-    if (path?.length > 1) {
-      if (layers.route && layers.routeGlow) {
-        layers.routeGlow.setLatLngs(path);
-        layers.route.setLatLngs(path);
+    if (currentPath.length > 1) {
+      if (!layers.route || !layers.routeGlow) {
+        safeRemove(map, layers.route);
+        safeRemove(map, layers.routeGlow);
+        layers.routeGlow = L.polyline(currentPath, { color: "#6ee7b7", weight: 12, opacity: 0.35, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
+        layers.route = L.polyline(currentPath, { color: "#059669", weight: 5, opacity: 0.95, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
       } else {
-        if (layers.route) map.removeLayer(layers.route);
-        if (layers.routeGlow) map.removeLayer(layers.routeGlow);
-        layers.routeGlow = L.polyline(path, {
-          color: "#6ee7b7",
-          weight: 12,
-          opacity: 0.35,
-          lineCap: "round",
-          lineJoin: "round",
-        }).addTo(map);
-        layers.route = L.polyline(path, {
-          color: "#059669",
-          weight: 5,
-          opacity: 0.95,
-          lineCap: "round",
-          lineJoin: "round",
-        }).addTo(map);
+        layers.routeGlow.setLatLngs(currentPath);
+        layers.route.setLatLngs(currentPath);
       }
-    } else if (layers.route || layers.routeGlow) {
-      if (layers.route) map.removeLayer(layers.route);
-      if (layers.routeGlow) map.removeLayer(layers.routeGlow);
+    } else {
+      safeRemove(map, layers.route);
+      safeRemove(map, layers.routeGlow);
       layers.route = null;
       layers.routeGlow = null;
     }
 
     layers.pins?.clearLayers();
-    (ridePins || []).forEach((pin) => {
-      if (!layers.pins) return;
-      if (pin.lat == null || pin.lng == null) return;
-      const marker = L.marker([pin.lat, pin.lng], {
-        icon: requestIcon(pin.label || "طلب"),
-      });
-      marker.on("click", (e) => {
-        L.DomEvent.stopPropagation(e);
-        pinClickRef.current?.(pin);
-      });
-      marker.addTo(layers.pins);
+    (Array.isArray(current.ridePins) ? current.ridePins : []).forEach((pin) => {
+      const p = pointOf(pin);
+      if (!p || !layers.pins) return;
+      L.marker([p.lat, p.lng], { icon: requestIcon(pin.label || "طلب") })
+        .on("click", (event) => { L.DomEvent.stopPropagation(event); pinClickRef.current?.(pin); })
+        .addTo(layers.pins);
     });
 
-    const pad = fitPadding || { padding: [48, 48] };
-    const followTarget = followRef.current && !(ridePins || []).length ? driver || gpsPoint : null;
-    if (followTarget?.lat != null) {
-      if (!pausedRef.current) {
-        map.panTo([followTarget.lat, followTarget.lng], { animate: true, duration: 0.35 });
-        const heading = headingOf(followTarget) ?? headingOf(driver) ?? headingOf(gpsPoint);
-        if (Number.isFinite(heading) && typeof map.setBearing === "function") {
-          try {
-            const current = Number(map.getBearing?.()) || 0;
-            if (Math.abs(shortestTurn(current, heading)) >= 3) map.setBearing(heading);
-          } catch {
-            /* rotate plugin unavailable */
-          }
-        }
+    // The viewport is fitted exactly once, only before the user interacts with it.
+    // Subsequent GPS, route and pin updates preserve the user's zoom and bearing.
+    if (!viewInitializedRef.current) {
+      const bounds = [];
+      [pickupPoint, destinationPoint, driverPoint, gps].filter(Boolean).forEach((p) => bounds.push([p.lat, p.lng]));
+      currentPath.forEach((p) => bounds.push(p));
+      (Array.isArray(current.ridePins) ? current.ridePins : []).map(pointOf).filter(Boolean).forEach((p) => bounds.push([p.lat, p.lng]));
+      const padding = fitPadding || { padding: [48, 48] };
+      if (bounds.length > 1) {
+        try { map.fitBounds(bounds, { maxZoom: DEFAULT_ZOOM, animate: false, ...padding }); } catch { /* keep initial view */ }
+        viewInitializedRef.current = true;
+      } else if (bounds.length === 1) {
+        try { map.panTo(bounds[0], { animate: false }); } catch { /* keep initial view */ }
+        viewInitializedRef.current = true;
       }
-    } else {
-      const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${requestsKey}|${JSON.stringify(pad)}`;
-      if (fitKey !== lastFitRef.current) {
-        lastFitRef.current = fitKey;
-        const bounds = [];
-        if (pickup?.lat != null) bounds.push([pickup.lat, pickup.lng]);
-        if (destination?.lat != null) bounds.push([destination.lat, destination.lng]);
-        if (path?.length > 1) path.forEach((p) => bounds.push(Array.isArray(p) ? p : [p.lat, p.lng]));
-        (ridePins || []).forEach((p) => {
-          if (p.lat != null) bounds.push([p.lat, p.lng]);
-        });
-        if (!bounds.length && driver?.lat != null) bounds.push([driver.lat, driver.lng]);
-        if (!bounds.length && gpsPoint) bounds.push([gpsPoint.lat, gpsPoint.lng]);
-        if (bounds.length > 1) {
-          map.fitBounds(bounds, { maxZoom: 17, animate: false, ...pad });
-        } else if (bounds.length === 1) {
-          map.panTo(bounds[0], { animate: false });
-        }
-        setTimeout(() => {
-          try {
-            map.invalidateSize({ animate: false });
-          } catch {
-            /* map already removed */
-          }
-        }, 50);
-      } else if (userLocation?.lat != null && !destination?.lat && !pickup?.lat) {
-        map.panTo([userLocation.lat, userLocation.lng], { animate: true });
-      }
-      if (typeof map.setBearing === "function") {
-        try {
-          if (Math.abs(Number(map.getBearing?.()) || 0) > 0.5) map.setBearing(0);
-        } catch {
-          /* rotate plugin unavailable */
+    }
+
+    const target = followRef.current ? driverPoint || gps : null;
+    if (target && !pausedRef.current) {
+      try { map.panTo([target.lat, target.lng], { animate: true, duration: 0.35, noMoveStart: true }); } catch { /* ignore stale map */ }
+      const nextBearing = headingOf(current.driver) ?? headingOf(current.userLocation);
+      if (nextBearing != null && typeof map.setBearing === "function") {
+        const start = Number(map.getBearing?.()) || bearingRef.current || 0;
+        const delta = shortestTurn(start, nextBearing);
+        if (Math.abs(delta) >= 2) {
+          const started = performance.now();
+          const animate = (now) => {
+            if (!mapRef.current) return;
+            const progress = Math.min(1, (now - started) / 220);
+            try { map.setBearing(start + delta * (1 - Math.pow(1 - progress, 3))); } catch { return; }
+            if (progress < 1) bearingFrameRef.current = requestAnimationFrame(animate);
+            else bearingRef.current = nextBearing;
+          };
+          if (bearingFrameRef.current) cancelAnimationFrame(bearingFrameRef.current);
+          bearingFrameRef.current = requestAnimationFrame(animate);
         }
       }
     }
-  }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy]);
+  }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy, fitPadding]);
 
   function recenter() {
     const map = mapRef.current;
-    const target = driver || userLocation || pickup;
-    if (!map || target?.lat == null) return;
+    const point = pointOf(driver) || pointOf(userLocation) || pointOf(pickup);
+    if (!map || !point) return;
     pausedRef.current = false;
-    map.panTo([target.lat, target.lng], { animate: true, duration: 0.45 });
-    const heading = headingOf(target) ?? headingOf(driver) ?? headingOf(userLocation);
-    if (followRef.current && Number.isFinite(heading) && typeof map.setBearing === "function") {
-      try {
-        map.setBearing(heading);
-      } catch {
-        /* rotate plugin unavailable */
-      }
+    try { map.panTo([point.lat, point.lng], { animate: true, duration: 0.45 }); } catch { /* ignore */ }
+    const nextBearing = headingOf(driver) ?? headingOf(userLocation);
+    if (nextBearing != null && typeof map.setBearing === "function") {
+      try { map.setBearing(nextBearing); bearingRef.current = nextBearing; } catch { /* rotate plugin unavailable */ }
     }
   }
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;
-
   return (
-    <div
-      className={`relative w-full overflow-hidden bg-[#d7e4dc] ${fill ? "h-full min-h-[46vh] rounded-none" : "rounded-2xl"}`}
-      style={{ height: fill ? "100%" : cssHeight, minHeight: fill ? "46vh" : undefined, direction: "ltr" }}
-    >
+    <div className={`relative w-full overflow-hidden bg-[#d7e4dc] ${fill ? "h-full min-h-[46vh] rounded-none" : "rounded-2xl"}`} style={{ height: fill ? "100%" : cssHeight, minHeight: fill ? "46vh" : undefined, direction: "ltr" }}>
       <div ref={wrapRef} className="absolute inset-0 z-0" />
-      {routeInfo?.distanceKm != null ? (
-        <div className="sd-map-chip absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-          {formatDistance(routeInfo.distanceKm)}
-          {routeInfo.durationMin != null ? ` · ${formatMinutes(routeInfo.durationMin)}` : ""}
-        </div>
-      ) : null}
-      {locate ? (
-        <button
-          type="button"
-          onClick={onLocate}
-          className="absolute z-20 bottom-3 left-3 w-11 h-11 rounded-full bg-white shadow-card border border-black/10 flex items-center justify-center"
-          aria-label="موقعي الحالي"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="3" stroke="#0b7350" strokeWidth="2" />
-            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="#0b7350" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </button>
-      ) : null}
-      {showRecenter ? (
-        <button
-          type="button"
-          onClick={recenter}
-          className="sd-overlay-btn absolute bottom-3 right-3 z-20 w-11 h-11 rounded-full bg-white shadow-[0_8px_20px_rgba(15,23,42,0.18)] border border-black/5 flex items-center justify-center"
-          aria-label="إعادة التمركز"
-        >
-          <span className="sd-gps-btn" />
-        </button>
-      ) : null}
+      {routeInfo?.distanceKm != null ? <div className="sd-map-chip absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">{formatDistance(routeInfo.distanceKm)}{routeInfo.durationMin != null ? ` · ${formatMinutes(routeInfo.durationMin)}` : ""}</div> : null}
+      {locate ? <button type="button" onClick={onLocate} className="absolute z-20 bottom-3 left-3 w-11 h-11 rounded-full bg-white shadow-card border border-black/10 flex items-center justify-center" aria-label="موقعي الحالي">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="#0b7350" strokeWidth="2" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="#0b7350" strokeWidth="2" strokeLinecap="round" /></svg>
+      </button> : null}
+      {showRecenter ? <button type="button" onClick={recenter} className="sd-overlay-btn absolute bottom-3 right-3 z-20 w-11 h-11 rounded-full bg-white shadow-[0_8px_20px_rgba(15,23,42,0.18)] border border-black/5 flex items-center justify-center" aria-label="إعادة التمركز"><span className="sd-gps-btn" /></button> : null}
       {children ? <div className="absolute inset-0 z-10 pointer-events-none">{children}</div> : null}
     </div>
   );

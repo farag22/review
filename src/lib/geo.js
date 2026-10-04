@@ -284,11 +284,36 @@ export async function getRoute(from, to, extras = []) {
 
 export function pathPointDistanceKm(point, path) {
   if (!point || !path?.length) return Infinity;
+  const target = { lat: Number(point.lat), lng: Number(point.lng) };
+  if (!Number.isFinite(target.lat) || !Number.isFinite(target.lng)) return Infinity;
   let minKm = Infinity;
   for (let i = 0; i < path.length; i += 1) {
-    const a = Array.isArray(path[i]) ? { lat: path[i][0], lng: path[i][1] } : path[i];
-    const d = haversineKm(point, a);
-    if (d < minKm) minKm = d;
+    const a = Array.isArray(path[i]) ? { lat: Number(path[i][0]), lng: Number(path[i][1]) } : path[i];
+    if (!Number.isFinite(a?.lat) || !Number.isFinite(a?.lng)) continue;
+    const bRaw = path[i + 1];
+    const b = bRaw
+      ? (Array.isArray(bRaw) ? { lat: Number(bRaw[0]), lng: Number(bRaw[1]) } : bRaw)
+      : null;
+    if (!b || !Number.isFinite(b.lat) || !Number.isFinite(b.lng)) {
+      minKm = Math.min(minKm, haversineKm(target, a));
+      continue;
+    }
+
+    // Equirectangular projection is accurate for the short road segments used
+    // here and lets us measure distance to the segment, not only its vertices.
+    const latScale = Math.cos(toRad((a.lat + b.lat + target.lat) / 3));
+    const ax = a.lng * latScale;
+    const ay = a.lat;
+    const bx = b.lng * latScale;
+    const by = b.lat;
+    const px = target.lng * latScale;
+    const py = target.lat;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared)) : 0;
+    const closest = { lat: ay + dy * t, lng: (ax + dx * t) / (latScale || 1) };
+    minKm = Math.min(minKm, haversineKm(target, closest));
   }
   return minKm;
 }
