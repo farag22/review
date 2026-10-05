@@ -94,11 +94,11 @@ export default function CaptainActiveRide() {
   }
 
   return (
-    <div className="ride-live">
-      <div className="ride-live-map">
+    <div className="ride-live captain-live">
+      <div className="ride-live-map captain-live-map">
         <MapView
           fill
-          follow
+          follow={false}
           height="100%"
           pickup={pickup}
           destination={destination}
@@ -107,6 +107,9 @@ export default function CaptainActiveRide() {
           path={route?.path}
           routeInfo={route}
           showRecenter
+          routeColor="#1d4ed8"
+          routeGlowColor="#bfdbfe"
+          routeWeight={7}
         />
       </div>
 

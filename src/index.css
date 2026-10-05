@@ -83,6 +83,19 @@ body {
   z-index: 0;
 }
 
+/* Keep the captain's live route in a dedicated viewport above the action sheet. */
+.captain-live-map {
+  bottom: clamp(280px, 44dvh, 360px);
+  z-index: 2;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.captain-live-map .sd-map-control {
+  width: 44px;
+  height: 44px;
+  font-size: 26px;
+}
+
 .ride-live-sheet {
   position: absolute;
   left: 0;

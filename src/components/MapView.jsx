@@ -123,6 +123,9 @@ export default function MapView({
   routeInfo,
   showControls = true,
   onFollowChange,
+  routeColor = "#059669",
+  routeGlowColor = "#6ee7b7",
+  routeWeight = 5,
 }) {
   const wrapRef = useRef(null);
   const mapRef = useRef(null);
@@ -330,20 +333,22 @@ export default function MapView({
       if (layers.route && layers.routeGlow) {
         layers.routeGlow.setLatLngs(path);
         layers.route.setLatLngs(path);
+        layers.routeGlow.setStyle({ color: routeGlowColor, weight: routeWeight + 9 });
+        layers.route.setStyle({ color: routeColor, weight: routeWeight });
       } else {
         if (layers.route) map.removeLayer(layers.route);
         if (layers.routeGlow) map.removeLayer(layers.routeGlow);
         layers.routeGlow = L.polyline(path, {
-          color: "#6ee7b7",
-          weight: 12,
-          opacity: 0.35,
+          color: routeGlowColor,
+          weight: routeWeight + 9,
+          opacity: 0.55,
           lineCap: "round",
           lineJoin: "round",
         }).addTo(map);
         layers.route = L.polyline(path, {
-          color: "#059669",
-          weight: 5,
-          opacity: 0.95,
+          color: routeColor,
+          weight: routeWeight,
+          opacity: 0.98,
           lineCap: "round",
           lineJoin: "round",
         }).addTo(map);
@@ -394,7 +399,7 @@ export default function MapView({
     } else if (userLocation?.lat != null && !destination?.lat && !pickup?.lat) {
       map.setView([userLocation.lat, userLocation.lng], map.getZoom() || 16, { animate: true });
     }
-  }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy]);
+  }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy, routeColor, routeGlowColor, routeWeight]);
 
   function recenter() {
     const map = mapRef.current;
