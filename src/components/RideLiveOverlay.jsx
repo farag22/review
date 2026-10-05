@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChatIcon, PhoneCallIcon } from "./Icons";
 import RideChat from "./RideChat";
 
@@ -12,6 +12,11 @@ export default function RideLiveOverlay({
   otherLabel,
 }) {
   const [chatOpen, setChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (chatOpen) setUnreadCount(0);
+  }, [chatOpen]);
 
   return (
     <>
@@ -39,22 +44,33 @@ export default function RideLiveOverlay({
           <button
             type="button"
             onClick={() => setChatOpen((v) => !v)}
-            className="w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-card"
+            className="relative w-11 h-11 rounded-full bg-white flex items-center justify-center shadow-card"
+            aria-label={unreadCount ? `رسائل جديدة: ${unreadCount}` : "فتح المحادثة"}
           >
             <ChatIcon size={16} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -left-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
-      {chatOpen && (
-        <div className="absolute top-20 left-4 right-4 z-20 bg-white rounded-2xl shadow-card p-4">
-          {rideId ? (
-            <RideChat rideId={rideId} senderRole={senderRole} otherLabel={otherLabel} />
-          ) : (
-            <>
-              <p className="font-bold text-[13px]">{chatTitle}</p>
-              <p className="text-[12px] text-ink/50 mt-1">{chatBody}</p>
-            </>
-          )}
+      <div className={`absolute top-20 left-4 right-4 z-20 bg-white rounded-2xl shadow-card p-4 ${chatOpen ? "" : "hidden"}`}>
+        {rideId ? (
+          <RideChat
+            rideId={rideId}
+            senderRole={senderRole}
+            otherLabel={otherLabel}
+            isOpen={chatOpen}
+            onIncomingMessage={() => setUnreadCount((count) => count + 1)}
+          />
+        ) : (
+          <>
+            <p className="font-bold text-[13px]">{chatTitle}</p>
+            <p className="text-[12px] text-ink/50 mt-1">{chatBody}</p>
+          </>
+        )}
           <button
             type="button"
             onClick={() => setChatOpen(false)}
@@ -62,8 +78,7 @@ export default function RideLiveOverlay({
           >
             إغلاق
           </button>
-        </div>
-      )}
+      </div>
     </>
   );
 }

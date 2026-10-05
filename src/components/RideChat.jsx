@@ -2,7 +2,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 
-export default function RideChat({ rideId, senderRole = "rider", otherLabel = "الطرف الآخر" }) {
+export default function RideChat({
+  rideId,
+  senderRole = "rider",
+  otherLabel = "الطرف الآخر",
+  isOpen = true,
+  onIncomingMessage,
+}) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -44,6 +50,7 @@ export default function RideChat({ rideId, senderRole = "rider", otherLabel = "�
           setMessages((current) =>
             current.some((item) => item.id === message.id) ? current : [...current, message]
           );
+          if (message.sender_id !== user.id && !isOpen) onIncomingMessage?.(message);
         }
       )
       .subscribe();
@@ -52,7 +59,7 @@ export default function RideChat({ rideId, senderRole = "rider", otherLabel = "�
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [rideId, user?.id]);
+  }, [rideId, user?.id, isOpen, onIncomingMessage]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,6 +87,7 @@ export default function RideChat({ rideId, senderRole = "rider", otherLabel = "�
     setDraft("");
   }
 
+  if (!isOpen) return null;
   if (!rideId) return <p className="text-[12px] text-ink/50 mt-2">تظهر المحادثة بعد بدء الرحلة.</p>;
 
   return (
