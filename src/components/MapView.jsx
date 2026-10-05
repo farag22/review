@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDistance, formatMinutes } from "../lib/geo";
@@ -121,6 +121,8 @@ export default function MapView({
   showAccuracy = false,
   showRecenter = false,
   routeInfo,
+  showControls = true,
+  onFollowChange,
 }) {
   const wrapRef = useRef(null);
   const mapRef = useRef(null);
@@ -142,8 +144,11 @@ export default function MapView({
   const destDragRef = useRef(onDestinationDrag);
   const pinClickRef = useRef(onRidePinClick);
   const pointsRef = useRef({ pickup, destination, driver, path, userLocation, ridePins });
+  const animationRef = useRef(null);
+  const followEnabledRef = useRef(Boolean(follow));
+  const [isFollowing, setIsFollowing] = useState(Boolean(follow));
   
-  followRef.current = follow;
+  followRef.current = follow && followEnabledRef.current;
   clickRef.current = onMapClick;
   pickupDragRef.current = onPickupDrag;
   destDragRef.current = onDestinationDrag;
@@ -184,7 +189,6 @@ export default function MapView({
       const next = TILE_LAYERS[tileIndex];
       L.tileLayer(next.url, { attribution: next.attr, maxZoom: 19 }).addTo(map);
     });
-    if (interactive) L.control.zoom({ position: "topleft" }).addTo(map);
     layersRef.current.markers = L.layerGroup().addTo(map);
     layersRef.current.pins = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -192,6 +196,13 @@ export default function MapView({
     map.on("click", (e) => {
       if (!clickRef.current) return;
       clickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
+    });
+
+    map.on("dragstart", () => {
+      if (!followEnabledRef.current) return;
+      followEnabledRef.current = false;
+      setIsFollowing(false);
+      onFollowChange?.(false);
     });
 
     const resize = () => map.invalidateSize({ animate: false });
@@ -208,6 +219,7 @@ export default function MapView({
       ro.disconnect();
       map.remove();
       mapRef.current = null;
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, []);
 
@@ -220,6 +232,11 @@ export default function MapView({
     map.doubleClickZoom[toggle]();
     map.touchZoom[toggle]();
   }, [interactive]);
+
+  useEffect(() => {
+    followEnabledRef.current = Boolean(follow);
+    setIsFollowing(Boolean(follow));
+  }, [follow]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -237,7 +254,25 @@ export default function MapView({
       }
       const latlng = [point.lat, point.lng];
       if (layers[kind]) {
-        layers[kind].setLatLng(latlng);
+        if (kind === "driver" && !samePoint(layers[kind].getLatLng(), point)) {
+          if (animationRef.current) cancelAnimationFrame(animationRef.current);
+          const from = layers[kind].getLatLng();
+          const startedAt = performance.now();
+          const duration = 900;
+          const animate = (now) => {
+            const progress = Math.min(1, (now - startedAt) / duration);
+            const eased = progress * (2 - progress);
+            layers[kind].setLatLng([
+              from.lat + (Number(point.lat) - from.lat) * eased,
+              from.lng + (Number(point.lng) - from.lng) * eased,
+            ]);
+            if (progress < 1) animationRef.current = requestAnimationFrame(animate);
+            else animationRef.current = null;
+          };
+          animationRef.current = requestAnimationFrame(animate);
+        } else {
+          layers[kind].setLatLng(latlng);
+        }
         layers[kind].setIcon(icon);
         if (draggable) layers[kind].dragging?.enable();
         else layers[kind].dragging?.disable();
@@ -365,7 +400,18 @@ export default function MapView({
     const map = mapRef.current;
     const target = userLocation || driver || pickup;
     if (!map || target?.lat == null) return;
-    map.flyTo([target.lat, target.lng], 17, { duration: 0.45 });
+    followEnabledRef.current = true;
+    setIsFollowing(true);
+    onFollowChange?.(true);
+    map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 16), { duration: 0.45 });
+  }
+
+  function zoomIn() {
+    mapRef.current?.zoomIn();
+  }
+
+  function zoomOut() {
+    mapRef.current?.zoomOut();
   }
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;
@@ -404,6 +450,22 @@ export default function MapView({
         >
           <span className="sd-gps-btn" />
         </button>
+      ) : null}
+      {interactive && showControls ? (
+        <div className="absolute top-3 right-3 z-20 flex flex-col gap-2" dir="ltr">
+          <button type="button" onClick={zoomIn} className="sd-map-control" aria-label="تكبير الخريطة">+</button>
+          <button type="button" onClick={zoomOut} className="sd-map-control" aria-label="تصغير الخريطة">−</button>
+          {follow ? (
+            <button
+              type="button"
+              onClick={recenter}
+              className={`sd-map-control text-[11px] ${isFollowing ? "text-brand-700" : "text-ink/50"}`}
+              aria-label="إعادة تمركز الخريطة على المركبة"
+            >
+              {isFollowing ? "تتبع" : "مركز"}
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {children ? <div className="absolute inset-0 z-10 pointer-events-none">{children}</div> : null}
     </div>

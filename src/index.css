@@ -96,6 +96,26 @@ body {
   pointer-events: auto;
 }
 
+.sd-map-control {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+  color: #0d1f18;
+  font: 800 24px Cairo, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  line-height: 1;
+}
+
+.sd-map-control:active {
+  transform: scale(0.96);
+}
+
 .choose-ride-sheet {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.78) 0%, rgba(2, 6, 23, 0.94) 42%);
   backdrop-filter: blur(18px);

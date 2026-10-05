@@ -1,5 +1,7 @@
 // src/components/RiderMap.jsx
 import React, { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { NearbyCaptainsService } from '../lib/NearbyCaptainsService';
 import { CaptainMarkerAnimator } from '../lib/CaptainMarkerAnimator';
 
@@ -14,10 +16,12 @@ export default function RiderMap({ centerLat, centerLng, radiusKm = 5 }) {
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    if (window.L) {
-      const map = window.L.map(mapRef.current).setView([centerLat || 30.466, centerLng || 31.185], 14);
+    if (L) {
+      const map = L.map(mapRef.current, { zoomControl: false, scrollWheelZoom: true, touchZoom: true })
+        .setView([centerLat || 30.466, centerLng || 31.185], 14);
+      L.control.zoom({ position: 'topright' }).addTo(map);
       
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
 
@@ -62,22 +66,24 @@ export default function RiderMap({ centerLat, centerLng, radiusKm = 5 }) {
   }, [centerLat, centerLng, radiusKm]);
 
   const updateOrAddDriverMarker = (driver, map) => {
-    if (!window.L || !driver.current_lat || !driver.current_lng) return;
+    const lat = driver.current_lat ?? driver.lat;
+    const lng = driver.current_lng ?? driver.lng;
+    if (!L || lat == null || lng == null) return;
 
-    const latLng = [driver.current_lat, driver.current_lng];
+    const latLng = [lat, lng];
 
     if (markersRef.current[driver.id]) {
       // Animate existing marker smoothly
       const animator = animatorsRef.current[driver.id];
       if (animator) {
-        animator.animateTo(driver.current_lat, driver.current_lng);
+        animator.animateTo(lat, lng);
         animator.updateHeading(driver.heading);
       } else {
         markersRef.current[driver.id].setLatLng(latLng);
       }
     } else {
       // Create custom marker for driver
-      const customIcon = window.L.divIcon({
+      const customIcon = L.divIcon({
         className: 'driver-marker-container',
         html: `<div class="driver-marker-icon" style="transform: rotate(${driver.heading || 0}deg); background: #10B981; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 3px 6px rgba(0,0,0,0.2); font-size: 16px;">🚗</div>`,
         iconSize: [36, 36],

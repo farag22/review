@@ -36,7 +36,7 @@ export default function TripProgress() {
     if (!driverId) return undefined;
 
     refreshDriver(driverId);
-    const poll = setInterval(() => refreshDriver(driverId), 4000);
+    const poll = setInterval(() => refreshDriver(driverId), 1500);
     const channel = supabase
       .channel(`driver-track-${driverId}`)
       .on(
