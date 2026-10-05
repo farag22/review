@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChatIcon, PhoneCallIcon } from "./Icons";
 import RideChat from "./RideChat";
 
@@ -56,31 +57,34 @@ export default function RideLiveOverlay({
           </button>
         </div>
       </div>
-      <div className={`fixed inset-0 z-[60] bg-slate-950/35 p-4 pt-20 md:pt-24 flex items-start justify-center ${chatOpen ? "" : "hidden"}`}>
-        <div className="w-full max-w-md max-h-[calc(100dvh-6rem)] overflow-y-auto bg-white rounded-2xl shadow-2xl p-4">
-          {rideId ? (
-            <RideChat
-              rideId={rideId}
-              senderRole={senderRole}
-              otherLabel={otherLabel}
-              isOpen={chatOpen}
-              onIncomingMessage={() => setUnreadCount((count) => count + 1)}
-            />
-          ) : (
-            <>
-              <p className="font-bold text-[13px]">{chatTitle}</p>
-              <p className="text-[12px] text-ink/50 mt-1">{chatBody}</p>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => setChatOpen(false)}
-            className="mt-4 w-full h-10 rounded-xl bg-sand text-[12px] font-bold text-brand-700"
-          >
-            إغلاق
-          </button>
-        </div>
-      </div>
+      {createPortal(
+        <div className={`fixed inset-0 z-[9999] bg-slate-950/35 p-4 pt-[max(5rem,env(safe-area-inset-top))] flex items-start justify-center ${chatOpen ? "" : "hidden"}`}>
+          <div className="w-full max-w-md max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {rideId ? (
+              <RideChat
+                rideId={rideId}
+                senderRole={senderRole}
+                otherLabel={otherLabel}
+                isOpen={chatOpen}
+                onIncomingMessage={() => setUnreadCount((count) => count + 1)}
+              />
+            ) : (
+              <>
+                <p className="font-bold text-[13px]">{chatTitle}</p>
+                <p className="text-[12px] text-ink/50 mt-1">{chatBody}</p>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setChatOpen(false)}
+              className="mt-4 w-full h-10 rounded-xl bg-sand text-[12px] font-bold text-brand-700"
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
