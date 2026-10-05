@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView from "../../components/MapView";
 import RideLiveOverlay from "../../components/RideLiveOverlay";
@@ -30,6 +30,21 @@ export default function TripProgress() {
     setActiveRide,
   } = useRide();
   const [error, setError] = useState("");
+  const [arrivalAlert, setArrivalAlert] = useState(false);
+  const lastStatusRef = useRef(activeRide?.status || null);
+
+  useEffect(() => {
+    const status = activeRide?.status;
+    const previousStatus = lastStatusRef.current;
+    lastStatusRef.current = status || previousStatus;
+    if (status !== "arrived" || !previousStatus || previousStatus === "arrived") return undefined;
+
+    setArrivalAlert(true);
+    if (navigator.vibrate) navigator.vibrate([140, 80, 260]);
+    playArrivalTone();
+    const timer = window.setTimeout(() => setArrivalAlert(false), 9000);
+    return () => window.clearTimeout(timer);
+  }, [activeRide?.status]);
 
   useEffect(() => {
     const driverId = activeRide?.driver_id || driver?.id;
@@ -140,6 +155,17 @@ export default function TripProgress() {
         chatBody="يمكنك التواصل أثناء التتبع المباشر على الخريطة حتى إنهاء الرحلة."
       />
 
+      {arrivalAlert ? (
+        <div className="absolute top-20 left-4 right-4 z-40 rounded-2xl bg-brand-700 text-white px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.28)] flex items-center gap-3" role="alert">
+          <span className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-xl">✓</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-extrabold text-[14px]">وصل الكابتن إلى موقعك</p>
+            <p className="text-[11px] text-white/75 mt-0.5">يمكنك التوجه إلى السيارة الآن</p>
+          </div>
+          <button type="button" onClick={() => setArrivalAlert(false)} className="text-white/70 text-xl leading-none" aria-label="إغلاق التنبيه">×</button>
+        </div>
+      ) : null}
+
       <div className="ride-live-sheet bg-white rounded-t-3xl px-5 pt-5 pb-6 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] space-y-4">
         <div className="w-10 h-1 rounded-full bg-black/10 mx-auto -mt-1" />
         <div className="flex items-center justify-between">
@@ -193,6 +219,29 @@ export default function TripProgress() {
       </div>
     </div>
   );
+}
+
+function playArrivalTone() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(740, context.currentTime);
+    oscillator.frequency.setValueAtTime(988, context.currentTime + 0.13);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.45);
+    oscillator.addEventListener("ended", () => context.close());
+  } catch {
+    // The visual alert remains available when browser audio is blocked.
+  }
 }
 
 function TripRow({ label, value, color }) {
