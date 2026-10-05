@@ -179,7 +179,7 @@ export default function MapView({
       dragging: interactive,
       scrollWheelZoom: interactive,
       doubleClickZoom: interactive,
-      touchZoom: interactive ? "center" : false,
+      touchZoom: interactive,
       boxZoom: interactive,
       keyboard: interactive,
     }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
@@ -201,17 +201,40 @@ export default function MapView({
     mapRef.current = map;
 
     if (orientToVehicle && Number.isFinite(Number(driver?.heading))) {
-      rotationRef.current = Number(driver.heading);
+      rotationRef.current = -Number(driver.heading);
       rotationInitializedRef.current = true;
     }
     const syncRotation = () => {
       const pane = map.getPane("mapPane");
       if (!pane) return;
       const base = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
+      pane.style.transformOrigin = "center center";
       pane.style.transform = `${base} rotate(${rotationRef.current}deg)`;
     };
     map.on("move zoom", syncRotation);
     syncRotation();
+
+    let rotationGesture = null;
+    const touchAngle = (touches) => {
+      const a = touches[0];
+      const b = touches[1];
+      return (Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX) * 180) / Math.PI;
+    };
+    const onTouchStart = (event) => {
+      if (!orientToVehicle || event.touches.length !== 2) return;
+      rotationGesture = { startAngle: touchAngle(event.touches), startRotation: rotationRef.current };
+    };
+    const onTouchMove = (event) => {
+      if (!rotationGesture || event.touches.length !== 2) return;
+      rotationRef.current = rotationGesture.startRotation + touchAngle(event.touches) - rotationGesture.startAngle;
+      syncRotation();
+    };
+    const onTouchEnd = () => {
+      rotationGesture = null;
+    };
+    wrapRef.current.addEventListener("touchstart", onTouchStart, { passive: true });
+    wrapRef.current.addEventListener("touchmove", onTouchMove, { passive: true });
+    wrapRef.current.addEventListener("touchend", onTouchEnd, { passive: true });
 
     map.on("click", (e) => {
       if (!clickRef.current) return;
@@ -236,6 +259,9 @@ export default function MapView({
       clearTimeout(t1);
       clearTimeout(t2);
       window.removeEventListener("resize", resize);
+      wrapRef.current?.removeEventListener("touchstart", onTouchStart);
+      wrapRef.current?.removeEventListener("touchmove", onTouchMove);
+      wrapRef.current?.removeEventListener("touchend", onTouchEnd);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
@@ -247,7 +273,7 @@ export default function MapView({
     const map = mapRef.current;
     if (!map || !orientToVehicle || rotationInitializedRef.current) return;
     if (!Number.isFinite(Number(driver?.heading))) return;
-    rotationRef.current = Number(driver.heading);
+    rotationRef.current = -Number(driver.heading);
     rotationInitializedRef.current = true;
     const pane = map.getPane("mapPane");
     if (!pane) return;
@@ -463,6 +489,7 @@ export default function MapView({
     rotationRef.current = 0;
     const pane = mapRef.current?.getPane("mapPane");
     if (!pane) return;
+    pane.style.transformOrigin = "center center";
     pane.style.transform = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
   }
 
