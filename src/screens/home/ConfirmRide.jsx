@@ -58,7 +58,7 @@ export default function ConfirmRide() {
       <ScreenHeader title="تأكيد الرحلة" subtitle="راجع تفاصيل رحلتك قبل الطلب" />
 
       <div className="px-5">
-        <MapView height={180} pickup={pickup} destination={destination} path={route?.path} routeInfo={route} showRecenter />
+        <MapView height="clamp(180px, 24vw, 320px)" pickup={pickup} destination={destination} path={route?.path} routeInfo={route} showRecenter />
       </div>
 
       <div className="px-5 mt-4">

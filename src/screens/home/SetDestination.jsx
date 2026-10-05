@@ -89,7 +89,7 @@ export default function SetDestination() {
 
       <div className="px-5">
         <MapView
-          height={250}
+          height="clamp(250px, 32vw, 420px)"
           pickup={pickup}
           destination={destination}
           userLocation={pickup?.manual ? null : pickup}

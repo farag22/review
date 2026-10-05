@@ -225,7 +225,7 @@ export default function CaptainDashboard() {
 
       <div className="px-5 mt-4">
         <MapView
-          height={260}
+          height="clamp(260px, 32vw, 440px)"
           driver={location}
           userLocation={location}
           follow={online}

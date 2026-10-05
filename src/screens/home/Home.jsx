@@ -54,12 +54,12 @@ export default function Home() {
       <div className="px-5 mt-4">
         {/* عرض خريطة الكباتن المتاحين بالقرب من موقع الراكب إذا توفرت الإحداثيات */}
         {pickup?.lat && pickup?.lng ? (
-          <div className="h-[210px] w-full rounded-2xl overflow-hidden shadow-card">
+          <div className="h-[210px] md:h-[300px] lg:h-[360px] w-full rounded-2xl overflow-hidden shadow-card">
             <RiderMap centerLat={pickup.lat} centerLng={pickup.lng} radiusKm={5} />
           </div>
         ) : (
           <MapView
-            height={210}
+            height="clamp(210px, 30vw, 360px)"
             userLocation={pickup}
             showAccuracy
             showRecenter

@@ -17,7 +17,8 @@ body {
 
 /* mobile app frame for desktop preview */
 .app-shell {
-  max-width: 430px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   min-height: 100vh;
   height: 100vh;
@@ -35,6 +36,30 @@ body {
   height: 100%;
   overflow-y: auto;
   padding-bottom: 24px;
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    max-width: 1440px;
+    min-height: 100dvh;
+    box-shadow: 0 0 40px rgba(15, 23, 42, 0.08);
+  }
+
+  .screen-scroll > *:not(.ride-live) {
+    width: 100%;
+    max-width: 1180px;
+    margin-inline: auto;
+  }
+
+  .screen-scroll > .ride-live {
+    max-width: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .screen-scroll > *:not(.ride-live) {
+    padding-inline: 1.5rem;
+  }
 }
 
 .screen-scroll:has(.ride-live) {
