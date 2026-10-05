@@ -49,6 +49,7 @@ export default function AdminDashboard() {
   const [riders, setRiders] = useState([]);
   const [topups, setTopups] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  const [assignments, setAssignments] = useState({});
 
   async function load() {
     setError("");
@@ -177,6 +178,42 @@ export default function AdminDashboard() {
       return;
     }
     setRides((list) => list.map((r) => (r.id === ride.id ? { ...r, status: "cancelled" } : r)));
+  }
+
+  async function assignRide(ride) {
+    const driverId = assignments[ride.id];
+    if (!driverId) {
+      setError("اختر كابتنًا أولاً لإسناد الرحلة");
+      return;
+    }
+    setBusyId(ride.id);
+    const { data, error: err } = await supabase
+      .from("rides")
+      .update({
+        driver_id: driverId,
+        status: "accepted",
+        accepted_at: new Date().toISOString(),
+      })
+      .eq("id", ride.id)
+      .eq("status", "requested")
+      .is("driver_id", null)
+      .select()
+      .maybeSingle();
+    setBusyId(null);
+    if (err) {
+      setError(err.message || "تعذر إسناد الرحلة للكابتن");
+      return;
+    }
+    if (!data) {
+      setError("تم التعامل مع الرحلة من مستخدم آخر، حدّث الصفحة وحاول مجددًا");
+      return;
+    }
+    setRides((list) => list.map((r) => (r.id === ride.id ? { ...r, ...data } : r)));
+    setAssignments((current) => {
+      const next = { ...current };
+      delete next[ride.id];
+      return next;
+    });
   }
 
   const name = user?.user_metadata?.full_name || "المدير";
@@ -355,11 +392,45 @@ export default function AdminDashboard() {
                 <span>{TYPE_LABELS[r.ride_type] || r.ride_type || "—"}</span>
                 <span>{formatEgp(r.fare)}</span>
               </div>
-              {["requested", "accepted", "arrived", "in_progress"].includes(r.status) && (
+              {r.status === "requested" && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    <select
+                      value={assignments[r.id] || ""}
+                      onChange={(event) =>
+                        setAssignments((current) => ({ ...current, [r.id]: event.target.value }))
+                      }
+                      className="min-w-0 flex-1 h-10 rounded-xl border border-black/10 bg-white px-3 text-[12px] font-bold text-ink"
+                    >
+                      <option value="">اختر كابتنًا للإسناد</option>
+                      {drivers.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.full_name || "كابتن"}{d.is_online ? " · متصل" : " · غير متصل"}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={busyId === r.id || !assignments[r.id]}
+                      onClick={() => assignRide(r)}
+                      className="h-10 px-3 rounded-xl bg-brand-600 text-white text-[12px] font-bold disabled:opacity-40"
+                    >
+                      {busyId === r.id ? "..." : "إسناد"}
+                    </button>
+                  </div>
+                  <button
+                    disabled={busyId === r.id}
+                    onClick={() => cancelRide(r)}
+                    className="w-full h-10 rounded-xl border border-red-200 text-red-500 text-[13px] font-bold disabled:opacity-40"
+                  >
+                    إلغاء الرحلة
+                  </button>
+                </div>
+              )}
+              {["accepted", "arrived", "in_progress"].includes(r.status) && (
                 <button
                   disabled={busyId === r.id}
                   onClick={() => cancelRide(r)}
-                  className="w-full h-10 rounded-xl border border-red-200 text-red-500 text-[13px] font-bold"
+                  className="w-full h-10 rounded-xl border border-red-200 text-red-500 text-[13px] font-bold disabled:opacity-40"
                 >
                   إلغاء الرحلة
                 </button>
