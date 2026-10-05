@@ -126,6 +126,7 @@ export default function MapView({
   routeColor = "#059669",
   routeGlowColor = "#6ee7b7",
   routeWeight = 5,
+  enableRotation = false,
 }) {
   const wrapRef = useRef(null);
   const mapRef = useRef(null);
@@ -149,6 +150,7 @@ export default function MapView({
   const pointsRef = useRef({ pickup, destination, driver, path, userLocation, ridePins });
   const animationRef = useRef(null);
   const followEnabledRef = useRef(Boolean(follow));
+  const rotationRef = useRef(0);
   const [isFollowing, setIsFollowing] = useState(Boolean(follow));
   
   followRef.current = follow && followEnabledRef.current;
@@ -195,6 +197,15 @@ export default function MapView({
     layersRef.current.markers = L.layerGroup().addTo(map);
     layersRef.current.pins = L.layerGroup().addTo(map);
     mapRef.current = map;
+
+    const syncRotation = () => {
+      const pane = map.getPane("mapPane");
+      if (!pane) return;
+      const base = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
+      pane.style.transform = `${base} rotate(${rotationRef.current}deg)`;
+    };
+    map.on("move zoom", syncRotation);
+    syncRotation();
 
     map.on("click", (e) => {
       if (!clickRef.current) return;
@@ -419,6 +430,22 @@ export default function MapView({
     mapRef.current?.zoomOut();
   }
 
+  function rotateMap(delta) {
+    if (!mapRef.current) return;
+    rotationRef.current = (rotationRef.current + delta + 360) % 360;
+    const pane = mapRef.current.getPane("mapPane");
+    if (!pane) return;
+    const base = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
+    pane.style.transform = `${base} rotate(${rotationRef.current}deg)`;
+  }
+
+  function resetRotation() {
+    rotationRef.current = 0;
+    const pane = mapRef.current?.getPane("mapPane");
+    if (!pane) return;
+    pane.style.transform = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
+  }
+
   const cssHeight = typeof height === "number" ? `${height}px` : height;
 
   return (
@@ -469,6 +496,13 @@ export default function MapView({
             >
               {isFollowing ? "تتبع" : "مركز"}
             </button>
+          ) : null}
+          {enableRotation ? (
+            <>
+              <button type="button" onClick={() => rotateMap(-15)} className="sd-map-control text-[18px]" aria-label="تدوير الخريطة لليسار">↺</button>
+              <button type="button" onClick={() => rotateMap(15)} className="sd-map-control text-[18px]" aria-label="تدوير الخريطة لليمين">↻</button>
+              <button type="button" onClick={resetRotation} className="sd-map-control text-[10px] font-extrabold" aria-label="إعادة اتجاه الخريطة">شمال</button>
+            </>
           ) : null}
         </div>
       ) : null}

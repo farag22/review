@@ -107,6 +107,7 @@ export default function CaptainActiveRide() {
           path={route?.path}
           routeInfo={route}
           showRecenter
+          enableRotation
           routeColor="#1d4ed8"
           routeGlowColor="#bfdbfe"
           routeWeight={7}
