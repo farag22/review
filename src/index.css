@@ -87,7 +87,15 @@ body {
 .captain-live-map {
   bottom: clamp(280px, 44dvh, 360px);
   z-index: 2;
+  min-height: 0;
+  overflow: hidden;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.captain-live-map .leaflet-container,
+.captain-live-map .leaflet-map-pane {
+  width: 100%;
+  height: 100%;
 }
 
 .captain-live-map .sd-map-control {

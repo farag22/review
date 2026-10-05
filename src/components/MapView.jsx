@@ -143,6 +143,7 @@ export default function MapView({
     accuracy: null,
   });
   const lastFitRef = useRef("");
+  const lastBoundsRef = useRef(null);
   const followRef = useRef(follow);
   const clickRef = useRef(onMapClick);
   const pickupDragRef = useRef(onPickupDrag);
@@ -444,11 +445,20 @@ export default function MapView({
       if (!bounds.length && driver?.lat != null) bounds.push([driver.lat, driver.lng]);
       if (!bounds.length && gpsPoint) bounds.push([gpsPoint.lat, gpsPoint.lng]);
       if (bounds.length > 1) {
+        lastBoundsRef.current = bounds;
         map.fitBounds(bounds, { maxZoom: 17, animate: false, ...pad });
       } else if (bounds.length === 1) {
+        lastBoundsRef.current = bounds;
         map.setView(bounds[0], 16, { animate: false });
       }
-      setTimeout(() => map.invalidateSize({ animate: false }), 50);
+      setTimeout(() => {
+        map.invalidateSize({ animate: false });
+        if (lastBoundsRef.current?.length > 1) {
+          map.fitBounds(lastBoundsRef.current, { maxZoom: 17, animate: false, ...pad });
+        } else if (lastBoundsRef.current?.length === 1) {
+          map.setView(lastBoundsRef.current[0], 16, { animate: false });
+        }
+      }, 120);
     } else if (followRef.current && driver?.lat != null) {
       map.panTo([driver.lat, driver.lng], { animate: true, duration: 0.35 });
     } else if (followRef.current && gpsPoint) {
