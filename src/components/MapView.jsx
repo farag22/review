@@ -18,7 +18,10 @@ const TILE_LAYERS = [
 ];
 
 const DEFAULT_CENTER = { lat: 30.466, lng: 31.185 };
-const DEFAULT_ZOOM = 16;
+const DEFAULT_ZOOM = 15;
+const MIN_ZOOM = 11;
+const MAX_ZOOM = 18;
+const FOLLOW_MIN_MOVE_M = 18;
 
 function number(value) {
   const n = Number(value);
@@ -36,6 +39,21 @@ function pathOf(path) {
   return path.map(pointOf).filter(Boolean).map((p) => [p.lat, p.lng]);
 }
 
+function pathKeyOf(path) {
+  const pts = pathOf(path);
+  if (pts.length < 2) return String(pts.length);
+  const a = pts[0];
+  const b = pts[pts.length - 1];
+  return `${pts.length}:${a[0].toFixed(4)},${a[1].toFixed(4)}:${b[0].toFixed(4)},${b[1].toFixed(4)}`;
+}
+
+function metersBetween(a, b) {
+  if (!a || !b) return Infinity;
+  const dLat = (b.lat - a.lat) * 111320;
+  const dLng = (b.lng - a.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180);
+  return Math.hypot(dLat, dLng);
+}
+
 function pointKey(point) {
   const p = pointOf(point);
   return p ? `${p.lat.toFixed(5)},${p.lng.toFixed(5)}` : "";
@@ -49,13 +67,6 @@ function pinsKey(pins) {
 function headingOf(point) {
   const heading = Number(point?.heading);
   return Number.isFinite(heading) && heading >= 0 ? heading % 360 : null;
-}
-
-function shortestTurn(from, to) {
-  let delta = to - from;
-  while (delta > 180) delta -= 360;
-  while (delta < -180) delta += 360;
-  return delta;
 }
 
 function pinIcon(color, label, live) {
@@ -84,8 +95,8 @@ function userDotIcon() {
   });
 }
 
-function carIcon(heading, mapRotated) {
-  const rotation = mapRotated ? 0 : headingOf({ heading }) || 0;
+function carIcon(heading) {
+  const rotation = headingOf({ heading }) || 0;
   return L.divIcon({
     className: "sd-marker",
     html: `<div style="width:36px;height:36px;transform:rotate(${rotation}deg);filter:drop-shadow(0 3px 6px rgba(15,23,42,.35))">
@@ -147,8 +158,8 @@ export default function MapView({
   const interactiveRef = useRef(interactive);
   const pausedRef = useRef(false);
   const viewInitializedRef = useRef(false);
-  const bearingRef = useRef(0);
-  const bearingFrameRef = useRef(null);
+  const lastFollowRef = useRef(null);
+  const headingIconRef = useRef(null);
   const clickRef = useRef(onMapClick);
   const pickupDragRef = useRef(onPickupDrag);
   const destinationDragRef = useRef(onDestinationDrag);
@@ -167,9 +178,9 @@ export default function MapView({
   const destinationKey = pointKey(destination);
   const driverKey = pointKey(driver);
   const userKey = pointKey(userLocation);
-  const pathKey = pathOf(path).map((p) => p.join(",")).join("|");
+  const pathKey = pathKeyOf(path);
   const requestsKey = pinsKey(ridePins);
-  const headingKey = Math.round(headingOf(driver) ?? headingOf(userLocation) ?? 0);
+  const headingKey = Math.round((headingOf(driver) ?? headingOf(userLocation) ?? 0) / 15) * 15;
 
   useEffect(() => {
     if (!wrapRef.current || mapRef.current) return undefined;
@@ -187,15 +198,16 @@ export default function MapView({
         touchZoom: interactiveRef.current,
         boxZoom: interactiveRef.current,
         keyboard: interactiveRef.current,
-        rotate: true,
-        bearing: 0,
-        rotateControl: false,
-        compassBearing: false,
-        touchRotate: interactiveRef.current,
-        shiftKeyRotate: false,
-        zoomAnimation: true,
-        fadeAnimation: true,
-        markerZoomAnimation: true,
+        minZoom: MIN_ZOOM,
+        maxZoom: MAX_ZOOM,
+        zoomSnap: 0.5,
+        zoomDelta: 0.5,
+        wheelPxPerZoomLevel: 120,
+        bounceAtZoomLimits: false,
+        zoomAnimation: false,
+        fadeAnimation: false,
+        markerZoomAnimation: false,
+        inertia: true,
       }).setView([center.lat, center.lng], DEFAULT_ZOOM, { animate: false });
     } catch {
       // A malformed plugin must never produce a white screen.
@@ -209,19 +221,26 @@ export default function MapView({
           touchZoom: interactiveRef.current,
           boxZoom: interactiveRef.current,
           keyboard: interactiveRef.current,
+          minZoom: MIN_ZOOM,
+          maxZoom: MAX_ZOOM,
+          zoomAnimation: false,
+          fadeAnimation: false,
         }).setView([center.lat, center.lng], DEFAULT_ZOOM, { animate: false });
       } catch {
         return undefined;
       }
     }
 
-    const tileLayer = L.tileLayer(TILE_LAYERS[0].url, { attribution: TILE_LAYERS[0].attr, maxZoom: 20, detectRetina: true }).addTo(map);
+    if (typeof map.setBearing === "function") {
+      try { map.setBearing(0); } catch { /* keep north-up */ }
+    }
+    const tileLayer = L.tileLayer(TILE_LAYERS[0].url, { attribution: TILE_LAYERS[0].attr, maxZoom: MAX_ZOOM, detectRetina: false }).addTo(map);
     let fallbackIndex = 0;
     tileLayer.on("tileerror", () => {
       if (fallbackIndex >= TILE_LAYERS.length - 1 || !mapRef.current) return;
       fallbackIndex += 1;
       const fallback = TILE_LAYERS[fallbackIndex];
-      L.tileLayer(fallback.url, { attribution: fallback.attr, maxZoom: 20, detectRetina: true }).addTo(map);
+      L.tileLayer(fallback.url, { attribution: fallback.attr, maxZoom: MAX_ZOOM, detectRetina: false }).addTo(map);
     });
 
     if (interactiveRef.current) L.control.zoom({ position: "topleft" }).addTo(map);
@@ -231,11 +250,10 @@ export default function MapView({
 
     map.on("click", (event) => clickRef.current?.({ lat: event.latlng.lat, lng: event.latlng.lng }));
     const pauseFollowing = () => {
-      if (followRef.current) pausedRef.current = true;
+      pausedRef.current = true;
     };
     map.on("dragstart", pauseFollowing);
     map.on("zoomstart", pauseFollowing);
-    map.on("rotatestart", pauseFollowing);
 
     const resize = () => {
       try { map.invalidateSize({ animate: false }); } catch { /* unmounted */ }
@@ -249,7 +267,6 @@ export default function MapView({
     return () => {
       clearTimeout(resizeTimer1);
       clearTimeout(resizeTimer2);
-      if (bearingFrameRef.current) cancelAnimationFrame(bearingFrameRef.current);
       resizeObserver?.disconnect();
       window.removeEventListener("resize", resize);
       try { map.remove(); } catch { /* already removed */ }
@@ -281,7 +298,7 @@ export default function MapView({
     const destinationPoint = pointOf(current.destination);
     const driverPoint = pointOf(current.driver);
 
-    const upsert = (kind, point, icon, draggable, onDrag) => {
+    const upsert = (kind, point, icon, draggable, onDrag, replaceIcon = true) => {
       if (!point) {
         safeRemove(map, layers[kind]);
         layers[kind] = null;
@@ -290,7 +307,7 @@ export default function MapView({
       const latLng = [point.lat, point.lng];
       if (layers[kind]) {
         layers[kind].setLatLng(latLng);
-        layers[kind].setIcon(icon);
+        if (replaceIcon) layers[kind].setIcon(icon);
         draggable ? layers[kind].dragging?.enable() : layers[kind].dragging?.disable();
         return;
       }
@@ -308,7 +325,9 @@ export default function MapView({
     upsert("pickup", pickupPoint, pinIcon("#059669", "أ", false), Boolean(pickupDragRef.current), pickupDragRef.current);
     upsert("destination", destinationPoint, pinIcon("#dc2626", "ب", false), Boolean(destinationDragRef.current), destinationDragRef.current);
     const heading = headingOf(current.driver) ?? headingOf(gps);
-    upsert("driver", driverPoint, carIcon(current.driver?.heading, followRef.current && heading != null), false);
+    const headingChanged = headingIconRef.current !== headingKey;
+    if (headingChanged) headingIconRef.current = headingKey;
+    upsert("driver", driverPoint, carIcon(heading), false, null, headingChanged || !layers.driver);
 
     if (showAccuracy && gps && Number(current.userLocation?.accuracy) > 8 && Number(current.userLocation?.accuracy) < 250) {
       if (layers.accuracy) {
@@ -357,33 +376,20 @@ export default function MapView({
       (Array.isArray(current.ridePins) ? current.ridePins : []).map(pointOf).filter(Boolean).forEach((p) => bounds.push([p.lat, p.lng]));
       const padding = fitPadding || { padding: [48, 48] };
       if (bounds.length > 1) {
-        try { map.fitBounds(bounds, { maxZoom: DEFAULT_ZOOM, animate: false, ...padding }); } catch { /* keep initial view */ }
+        try { map.fitBounds(bounds, { maxZoom: DEFAULT_ZOOM, minZoom: MIN_ZOOM, animate: false, ...padding }); } catch { /* keep initial view */ }
         viewInitializedRef.current = true;
       } else if (bounds.length === 1) {
-        try { map.panTo(bounds[0], { animate: false }); } catch { /* keep initial view */ }
+        try { map.setView(bounds[0], Math.min(DEFAULT_ZOOM, map.getZoom() || DEFAULT_ZOOM), { animate: false }); } catch { /* keep initial view */ }
         viewInitializedRef.current = true;
       }
     }
 
     const target = followRef.current ? driverPoint || gps : null;
     if (target && !pausedRef.current) {
-      try { map.panTo([target.lat, target.lng], { animate: true, duration: 0.35, noMoveStart: true }); } catch { /* ignore stale map */ }
-      const nextBearing = headingOf(current.driver) ?? headingOf(current.userLocation);
-      if (nextBearing != null && typeof map.setBearing === "function") {
-        const start = Number(map.getBearing?.()) || bearingRef.current || 0;
-        const delta = shortestTurn(start, nextBearing);
-        if (Math.abs(delta) >= 2) {
-          const started = performance.now();
-          const animate = (now) => {
-            if (!mapRef.current) return;
-            const progress = Math.min(1, (now - started) / 220);
-            try { map.setBearing(start + delta * (1 - Math.pow(1 - progress, 3))); } catch { return; }
-            if (progress < 1) bearingFrameRef.current = requestAnimationFrame(animate);
-            else bearingRef.current = nextBearing;
-          };
-          if (bearingFrameRef.current) cancelAnimationFrame(bearingFrameRef.current);
-          bearingFrameRef.current = requestAnimationFrame(animate);
-        }
+      const last = lastFollowRef.current;
+      if (!last || metersBetween(last, target) >= FOLLOW_MIN_MOVE_M) {
+        lastFollowRef.current = target;
+        try { map.panTo([target.lat, target.lng], { animate: false, noMoveStart: true }); } catch { /* ignore stale map */ }
       }
     }
   }, [pickupKey, destinationKey, driverKey, userKey, pathKey, requestsKey, headingKey, showAccuracy, fitPadding]);
@@ -393,11 +399,11 @@ export default function MapView({
     const point = pointOf(driver) || pointOf(userLocation) || pointOf(pickup);
     if (!map || !point) return;
     pausedRef.current = false;
-    try { map.panTo([point.lat, point.lng], { animate: true, duration: 0.45 }); } catch { /* ignore */ }
-    const nextBearing = headingOf(driver) ?? headingOf(userLocation);
-    if (nextBearing != null && typeof map.setBearing === "function") {
-      try { map.setBearing(nextBearing); bearingRef.current = nextBearing; } catch { /* rotate plugin unavailable */ }
-    }
+    lastFollowRef.current = point;
+    try {
+      map.panTo([point.lat, point.lng], { animate: false });
+      if (typeof map.setBearing === "function") map.setBearing(0);
+    } catch { /* ignore */ }
   }
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;

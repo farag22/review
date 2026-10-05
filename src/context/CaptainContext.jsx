@@ -16,7 +16,12 @@ function mapCaptainError(error, fallback) {
   const msg = error?.message || "";
   if (/رصيد المحفظة غير كاف/.test(msg)) return WALLET_INSUFFICIENT_MSG;
   if (/مديونية|مقفول|مغلق/.test(msg)) return CAPTAIN_LOCKED_MSG;
+  if (/الحقول الحساسة/.test(msg)) return "تعذر تحديث الرحلة. شغّل supabase/fix-ride-status.sql";
   return msg || fallback;
+}
+
+function firstRow(data) {
+  return Array.isArray(data) ? data[0] || null : data || null;
 }
 
 function startOfLocalDayIso() {
@@ -420,19 +425,23 @@ export function CaptainProvider({ children }) {
     if (!driver?.id) throw new Error("لا يوجد حساب كابتن");
     if (isCaptainLocked(driver)) throw new Error(CAPTAIN_LOCKED_MSG);
     if (!driver.is_online) throw new Error("اتصل أولاً لقبول الطلبات");
-    const { data, error: acceptError } = await supabase
-      .from("rides")
-      .update({
-        driver_id: driver.id,
-        status: "accepted",
-        accepted_at: new Date().toISOString(),
-      })
-      .eq("id", ride.id)
-      .eq("status", "requested")
-      .is("driver_id", null)
-      .select()
-      .maybeSingle();
-    if (acceptError) throw acceptError;
+    let { data, error: acceptError } = await supabase.rpc("accept_ride", { p_ride_id: ride.id });
+    if (acceptError && /could not find the function|schema cache|does not exist/i.test(acceptError.message || "")) {
+      ({ data, error: acceptError } = await supabase
+        .from("rides")
+        .update({
+          driver_id: driver.id,
+          status: "accepted",
+          accepted_at: new Date().toISOString(),
+        })
+        .eq("id", ride.id)
+        .eq("status", "requested")
+        .is("driver_id", null)
+        .select()
+        .maybeSingle());
+    }
+    if (acceptError) throw new Error(mapCaptainError(acceptError, "تعذر قبول الطلب"));
+    data = firstRow(data);
     if (!data) throw new Error("تم قبول الطلب من كابتن آخر");
     setActiveRide(data);
     setPendingRides((list) => list.filter((r) => r.id !== ride.id));
@@ -453,7 +462,7 @@ export function CaptainProvider({ children }) {
       { p_ride_id: activeRide.id, p_status: status }
     );
     if (updateError) throw new Error(mapCaptainError(updateError, "تعذر تحديث حالة الرحلة"));
-    const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    const data = firstRow(rpcData);
 
     if (status === "completed" || status === "cancelled") {
       setActiveRide(null);
@@ -477,7 +486,7 @@ export function CaptainProvider({ children }) {
     });
     if (cancelError) throw new Error(mapCaptainError(cancelError, "تعذر إلغاء الرحلة"));
 
-    const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    const data = firstRow(rpcData);
     setActiveRide(null);
     setRoute(null);
     await refreshPendingAndActive();

@@ -124,7 +124,6 @@ export default function CaptainActiveRide() {
           path={route?.path}
           routeInfo={route}
           showRecenter
-          showAccuracy
           locate
           onLocate={refreshLocation}
         />

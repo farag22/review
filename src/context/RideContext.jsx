@@ -22,7 +22,13 @@ const OPEN_WALLET_STATUSES = ["requested", "scheduled", "accepted", "arrived", "
 function mapRideError(error, fallback) {
   const msg = error?.message || "";
   if (/رصيد المحفظة غير كاف/.test(msg)) return WALLET_INSUFFICIENT_MSG;
+  if (/الحقول الحساسة/.test(msg)) return "تعذر تحديث الرحلة. شغّل supabase/fix-ride-status.sql";
+  if (/غير موجودة أو لا يمكن/.test(msg)) return msg;
   return msg || fallback;
+}
+
+function firstRow(data) {
+  return Array.isArray(data) ? data[0] || null : data || null;
 }
 
 const RideContext = createContext(null);
@@ -346,32 +352,26 @@ export function RideProvider({ children }) {
 
   async function updateRideStatus(status, extra = {}) {
     if (!activeRide?.id) return null;
-    if (status === "completed") {
-      const { data: rpcData, error: completeError } = await supabase.rpc("rider_complete_ride", {
-        p_ride_id: activeRide.id,
-      });
-      if (completeError) throw new Error(mapRideError(completeError, "تعذر إنهاء الرحلة"));
-      const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    let rpcName = null;
+    const params = { p_ride_id: activeRide.id };
+    if (status === "in_progress") rpcName = "rider_start_ride";
+    else if (status === "completed" && extra?.rider_rating != null) {
+      rpcName = "rider_rate_ride";
+      params.p_rating = Number(extra.rider_rating) || 0;
+    } else if (status === "completed") rpcName = "rider_complete_ride";
+    else if (status === "cancelled") rpcName = "rider_cancel_ride";
+
+    if (rpcName) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc(rpcName, params);
+      if (rpcError) throw new Error(mapRideError(rpcError, "تعذر تحديث الرحلة"));
+      const data = firstRow(rpcData);
       setActiveRide(data || null);
       activeRideRef.current = data || null;
-      await refreshWallet();
+      if (status === "completed" || status === "cancelled") await refreshWallet();
       return data || null;
     }
-    const patch = { status, ...extra };
-    if (status === "in_progress") patch.started_at = new Date().toISOString();
-    if (status === "completed") patch.completed_at = new Date().toISOString();
-    const { data: rows, error } = await supabase
-      .from("rides")
-      .update(patch)
-      .eq("id", activeRide.id)
-      .select();
-    if (error) throw new Error(mapRideError(error, "تعذر تحديث الرحلة"));
-    const data = rows?.[0] || null;
-    if (!data) throw new Error("تعذر تحديث الرحلة: الرحلة غير موجودة أو لا يمكن تعديلها");
-    setActiveRide(data);
-    activeRideRef.current = data;
-    if (status === "completed" || status === "cancelled") await refreshWallet();
-    return data;
+
+    throw new Error("تعذر تحديث الرحلة: الحالة غير مسموحة");
   }
 
   async function cancelRide() {
@@ -380,7 +380,7 @@ export function RideProvider({ children }) {
       p_ride_id: activeRide.id,
     });
     if (cancelError) throw new Error(mapRideError(cancelError, "تعذر إلغاء الرحلة"));
-    const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    const data = firstRow(rpcData);
     setActiveRide(null);
     activeRideRef.current = null;
     setDriver(null);
