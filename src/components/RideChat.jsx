@@ -16,6 +16,14 @@ export default function RideChat({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const endRef = useRef(null);
+  const seenIdsRef = useRef(new Set());
+  const isOpenRef = useRef(isOpen);
+  const incomingRef = useRef(onIncomingMessage);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+    incomingRef.current = onIncomingMessage;
+  }, [isOpen, onIncomingMessage]);
 
   useEffect(() => {
     if (!rideId || !user?.id) {
@@ -27,18 +35,33 @@ export default function RideChat({
     let active = true;
     setLoading(true);
     setError("");
-    supabase
-      .from("ride_messages")
-      .select("id, ride_id, sender_id, sender_role, body, created_at")
-      .eq("ride_id", rideId)
-      .order("created_at", { ascending: true })
-      .limit(100)
-      .then(({ data, error: loadError }) => {
-        if (!active) return;
-        if (loadError) setError("تعذر تحميل المحادثة");
-        setMessages(data || []);
-        setLoading(false);
-      });
+    seenIdsRef.current = new Set();
+
+    async function syncMessages(initial = false) {
+      const { data, error: loadError } = await supabase
+        .from("ride_messages")
+        .select("id, ride_id, sender_id, sender_role, body, created_at")
+        .eq("ride_id", rideId)
+        .order("created_at", { ascending: true })
+        .limit(100);
+      if (!active) return;
+      if (loadError) {
+        if (initial) setError("تعذر تحميل المحادثة");
+        return;
+      }
+      const newIncoming = (data || []).filter(
+        (message) => !seenIdsRef.current.has(message.id) && message.sender_id !== user.id
+      );
+      data?.forEach((message) => seenIdsRef.current.add(message.id));
+      setMessages(data || []);
+      if (!initial && !isOpenRef.current) {
+        newIncoming.forEach((message) => incomingRef.current?.(message));
+      }
+      setLoading(false);
+    }
+
+    syncMessages(true);
+    const poll = window.setInterval(() => syncMessages(false), 2500);
 
     const channel = supabase
       .channel(`ride-messages-${rideId}`)
@@ -47,19 +70,24 @@ export default function RideChat({
         { event: "INSERT", schema: "public", table: "ride_messages", filter: `ride_id=eq.${rideId}` },
         ({ new: message }) => {
           if (!active || !message) return;
+          const alreadySeen = seenIdsRef.current.has(message.id);
+          seenIdsRef.current.add(message.id);
           setMessages((current) =>
             current.some((item) => item.id === message.id) ? current : [...current, message]
           );
-          if (message.sender_id !== user.id && !isOpen) onIncomingMessage?.(message);
+          if (!alreadySeen && message.sender_id !== user.id && !isOpenRef.current) {
+            incomingRef.current?.(message);
+          }
         }
       )
       .subscribe();
 
     return () => {
       active = false;
+      window.clearInterval(poll);
       supabase.removeChannel(channel);
     };
-  }, [rideId, user?.id, isOpen, onIncomingMessage]);
+  }, [rideId, user?.id]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -82,6 +110,7 @@ export default function RideChat({
       return;
     }
     if (data) {
+      seenIdsRef.current.add(data.id);
       setMessages((current) => (current.some((item) => item.id === data.id) ? current : [...current, data]));
     }
     setDraft("");
