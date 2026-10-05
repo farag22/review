@@ -127,6 +127,7 @@ export default function MapView({
   routeGlowColor = "#6ee7b7",
   routeWeight = 5,
   enableRotation = false,
+  orientToVehicle = false,
 }) {
   const wrapRef = useRef(null);
   const mapRef = useRef(null);
@@ -151,6 +152,7 @@ export default function MapView({
   const animationRef = useRef(null);
   const followEnabledRef = useRef(Boolean(follow));
   const rotationRef = useRef(0);
+  const rotationInitializedRef = useRef(false);
   const [isFollowing, setIsFollowing] = useState(Boolean(follow));
   
   followRef.current = follow && followEnabledRef.current;
@@ -198,6 +200,10 @@ export default function MapView({
     layersRef.current.pins = L.layerGroup().addTo(map);
     mapRef.current = map;
 
+    if (orientToVehicle && Number.isFinite(Number(driver?.heading))) {
+      rotationRef.current = -Number(driver.heading);
+      rotationInitializedRef.current = true;
+    }
     const syncRotation = () => {
       const pane = map.getPane("mapPane");
       if (!pane) return;
@@ -236,6 +242,18 @@ export default function MapView({
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !orientToVehicle || rotationInitializedRef.current) return;
+    if (!Number.isFinite(Number(driver?.heading))) return;
+    rotationRef.current = -Number(driver.heading);
+    rotationInitializedRef.current = true;
+    const pane = map.getPane("mapPane");
+    if (!pane) return;
+    const base = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
+    pane.style.transform = `${base} rotate(${rotationRef.current}deg)`;
+  }, [orientToVehicle, headingKey]);
 
   useEffect(() => {
     const map = mapRef.current;
