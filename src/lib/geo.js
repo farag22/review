@@ -85,7 +85,7 @@ export function formatDistance(km) {
 
 export function formatEgp(amount) {
   const n = Number(amount) || 0;
-  return `${n.toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م`;
+  return `${n.toLocaleString("ar-EG", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })} ج.م`;
 }
 
 export const RIDE_TYPE_LABELS = {

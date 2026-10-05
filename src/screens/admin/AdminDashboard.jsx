@@ -194,6 +194,12 @@ export default function AdminDashboard() {
         >
           {name ? name[0] : "م"}
         </button>
+        <button
+          onClick={() => navigate("/admin/pricing")}
+          className="h-10 px-3 rounded-xl bg-amber-50 text-amber-700 text-[12px] font-bold"
+        >
+          التسعير
+        </button>
       </div>
 
       <div className="px-5 mt-4 flex gap-2 overflow-x-auto">

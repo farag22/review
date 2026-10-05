@@ -39,6 +39,7 @@ import CaptainDebt from "./screens/captain/CaptainDebt";
 
 import AdminSignIn from "./screens/admin/AdminSignIn";
 import AdminDashboard from "./screens/admin/AdminDashboard";
+import PricingSettings from "./screens/admin/PricingSettings";
 
 function AuthLoading() {
   return (
@@ -159,8 +160,9 @@ export default function App() {
             path="/admin/*"
             element={
               <RequireAdminAuth>
-                <Routes>
-                  <Route path="dashboard" element={<AdminDashboard />} />
+                  <Routes>
+                    <Route path="dashboard" element={<AdminDashboard />} />
+                    <Route path="pricing" element={<PricingSettings />} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
                 </Routes>

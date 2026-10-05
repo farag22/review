@@ -57,9 +57,9 @@ export default function CaptainActiveRide() {
         <div className="mt-8 rounded-2xl bg-white shadow-card p-5 space-y-3">
            <Row label="المسافة" value={formatDistance(Number(done.distance_km) || 0)} />
            <Row label="المدة" value={formatMinutes(done.duration_min || 0)} />
-           <Row label="التكلفة" value={formatEgp(done.fare)} />
-           <Row label="عمولة التطبيق 10%" value={formatEgp(done.app_commission ?? appCommission(done.fare))} />
-           <Row label="صافي الكابتن" value={formatEgp(done.captain_net ?? captainNet(done.fare))} />
+           <Row label="إجمالي الراكب" value={formatEgp(done.passenger_total ?? done.fare)} />
+           <Row label="عمولة المنصة" value={formatEgp(done.platform_commission ?? done.app_commission ?? appCommission(done.fare))} />
+           <Row label="صافي الكابتن" value={formatEgp(done.captain_net ?? done.captain_earnings ?? captainNet(done.fare))} />
            <Row
              label="الدفع"
              value={done.payment_method === "wallet" ? "محفظة — صافي للحساب" : "نقدًا — العمولة على الكابتن"}
@@ -129,7 +129,7 @@ export default function CaptainActiveRide() {
               {formatDistance(remainingKm)} متبقية · {formatMinutes(route?.durationMin || activeRide.duration_min || 1)}
             </p>
           </div>
-          <span className="text-brand-700 font-extrabold">{formatEgp(activeRide.fare)}</span>
+          <span className="text-brand-700 font-extrabold">{formatEgp(activeRide.captain_net ?? activeRide.captain_earnings ?? activeRide.fare)}</span>
         </div>
 
         <div className="rounded-2xl bg-sand p-3 space-y-2">

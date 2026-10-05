@@ -14,6 +14,7 @@ import {
   watchPosition,
 } from "../lib/geo";
 import { WALLET_INSUFFICIENT_MSG, availableWalletBalance } from "../lib/finance";
+import { createPricedRide, quoteRidePrice } from "../lib/pricing";
 
 const OPEN_WALLET_STATUSES = ["requested", "scheduled", "accepted", "arrived", "in_progress"];
 
@@ -44,6 +45,7 @@ export function RideProvider({ children }) {
   const [activeRide, setActiveRide] = useState(null);
   const [driver, setDriver] = useState(null);
   const [rideTypes, setRideTypes] = useState(DEFAULT_TYPES);
+  const [pricingQuotes, setPricingQuotes] = useState({});
   const [route, setRoute] = useState(null);
   const [savedPlaces, setSavedPlaces] = useState([]);
   const [locationError, setLocationError] = useState("");
@@ -198,6 +200,31 @@ export function RideProvider({ children }) {
     };
   }, [pickup, destination, stops]);
 
+  useEffect(() => {
+    if (!pickup?.lat || !destination?.lat || !route?.distanceKm || !rideTypes.length) {
+      setPricingQuotes({});
+      return undefined;
+    }
+    let cancelled = false;
+    Promise.all(rideTypes.map(async (type) => {
+      try {
+        const quote = await quoteRidePrice({
+          pickup,
+          destination,
+          distanceKm: route.distanceKm,
+          durationMinutes: route.durationMin,
+          rideType: type.id,
+        });
+        return [type.id, quote];
+      } catch {
+        return [type.id, null];
+      }
+    })).then((rows) => {
+      if (!cancelled) setPricingQuotes(Object.fromEntries(rows.filter(([, quote]) => quote)));
+    });
+    return () => { cancelled = true; };
+  }, [pickup?.lat, pickup?.lng, destination?.lat, destination?.lng, route?.distanceKm, route?.durationMin, rideTypes]);
+
   const rideOptions = useMemo(() => {
     const distanceKm = route?.distanceKm || 0;
     const durationMin = route?.durationMin || 0;
@@ -207,7 +234,8 @@ export function RideProvider({ children }) {
         ...t,
         label: rideTypeLabel(t.id, profile.label || t.label),
         eta: minutesOnly(Math.max(2, Math.round((durationMin || 8) * 0.18) + 2 + (profile.etaBias || 0))),
-        price: calcFare(t, distanceKm, durationMin),
+        price: Number(pricingQuotes[t.id]?.passenger_total) || calcFare(t, distanceKm, durationMin),
+        pricing: pricingQuotes[t.id] || null,
         cta: profile.cta || "اطلب الآن",
         distanceKm,
         durationMin,
@@ -228,7 +256,7 @@ export function RideProvider({ children }) {
       if (o.id === "comfort") badge = { type: "fast", text: "أولوية" };
       return { ...o, badge };
     });
-  }, [rideTypes, route]);
+  }, [rideTypes, route, pricingQuotes]);
 
   async function refreshDriver(driverId) {
     if (!driverId) {
@@ -243,36 +271,25 @@ export function RideProvider({ children }) {
   async function requestRide({ scheduledAt } = {}) {
     if (!user?.id) throw new Error("سجّل الدخول أولاً");
     if (!destination?.lat) throw new Error("حدد الوجهة أولاً");
-    const option = selectedRide || rideOptions[0];
+    const option = rideOptions.find((item) => item.id === selectedRide?.id) || rideOptions[0];
     if (!option) throw new Error("اختر نوع الرحلة");
 
     if (paymentMethod === "wallet") {
       await assertWalletCanPay(option.price);
     }
 
-    const payload = {
-      rider_id: user.id,
-      pickup_address: pickup?.address || pickup?.label,
-      pickup_lat: pickup?.lat,
-      pickup_lng: pickup?.lng,
-      dropoff_address: destination?.address || destination?.label,
-      dropoff_lat: destination?.lat,
-      dropoff_lng: destination?.lng,
-      ride_type: option.id,
-      fare: option.price,
-      distance_km: route?.distanceKm ? Number(route.distanceKm.toFixed(2)) : null,
-      duration_min: route?.durationMin || null,
-      payment_method: paymentMethod,
-      status: scheduledAt ? "scheduled" : "requested",
-      scheduled_at: scheduledAt || null,
-    };
-
-    let { data, error } = await supabase.from("rides").insert(payload).select().single();
-    if (error && /distance_km|duration_min|scheduled_at/i.test(error.message || "")) {
-      const { distance_km, duration_min, scheduled_at, ...legacy } = payload;
-      ({ data, error } = await supabase.from("rides").insert(legacy).select().single());
-    }
-    if (error) throw new Error(mapRideError(error, "تعذر طلب الرحلة"));
+    const data = await createPricedRide({
+      pickup,
+      destination,
+      pickupAddress: pickup?.address || pickup?.label,
+      dropoffAddress: destination?.address || destination?.label,
+      rideType: option.id,
+      distanceKm: route?.distanceKm,
+      durationMinutes: route?.durationMin,
+      paymentMethod,
+      scheduledAt,
+    });
+    if (!data) throw new Error("تعذر إنشاء الرحلة المحسوبة");
 
     if (stops.length && data?.id) {
       await supabase.from("ride_stops").insert(

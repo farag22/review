@@ -71,6 +71,15 @@ export default function ConfirmRide() {
               {formatDistance(route.distanceKm)} · {formatMinutes(route.durationMin)}
             </p>
           )}
+          {selectedRide?.pricing && (
+            <div className="border-t border-black/5 pt-2 space-y-1 text-[12px] text-ink/55">
+              <PriceRow label="أجرة البداية" value={selectedRide.pricing.base_fare} />
+              <PriceRow label="المسافة" value={selectedRide.pricing.distance_fare} />
+              <PriceRow label="الوقت" value={selectedRide.pricing.time_fare} />
+              {Number(selectedRide.pricing.extra_fees) > 0 && <PriceRow label="رسوم إضافية" value={selectedRide.pricing.extra_fees} />}
+              {Number(selectedRide.pricing.surge_multiplier) > 1 && <p className="text-amber-600">معامل الذروة ×{selectedRide.pricing.surge_multiplier}</p>}
+            </div>
+          )}
         </div>
       </div>
 
@@ -106,6 +115,9 @@ export default function ConfirmRide() {
           <p className="text-red-500 text-[13px]">{WALLET_INSUFFICIENT_MSG}</p>
         )}
         {error && !walletBlocked && <p className="text-red-500 text-[13px]">{error}</p>}
+        <p className="text-[11px] leading-5 text-ink/45">
+          السعر تقديري وقد يتغير وفق المسافة والوقت الفعليين والرسوم المطبقة.
+        </p>
         {paymentMethod === "wallet" && (
           <p className="text-[12px] text-ink/50">
             المتاح بالمحفظة {formatEgp(available)} من أصل {formatEgp(walletBalance)}
@@ -143,6 +155,15 @@ function Row({ label, value, dotColor }) {
         <p className="text-[11px] text-ink/45">{label}</p>
         <p className="text-[14px] font-semibold">{value}</p>
       </div>
+    </div>
+  );
+}
+
+function PriceRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span>{label}</span>
+      <span className="font-semibold text-ink">{formatEgp(value)}</span>
     </div>
   );
 }
