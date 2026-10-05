@@ -107,6 +107,7 @@ export default function CaptainActiveRide() {
           path={route?.path}
           routeInfo={route}
           showRecenter
+          showControls={false}
           enableRotation
           orientToVehicle
           routeColor="#1d4ed8"
