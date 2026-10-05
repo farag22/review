@@ -55,6 +55,15 @@ export function AuthProvider({ children }) {
       phone: user.user_metadata?.phone || "",
       role: metaRole || "rider",
     };
+    if (!profileRow && !driverRow && metaRole !== "captain" && metaRole !== "admin") {
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || "",
+        phone: user.user_metadata?.phone || null,
+        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+        role: "rider",
+      });
+    }
     setProfile(nextProfile);
     setDriver(driverRow || null);
 
@@ -134,6 +143,15 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: identity.email,
       password,
+    });
+    return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
+  }
+
+  async function signInWithGoogle(redirectPath = "/signin") {
+    const redirectTo = `${window.location.origin}${redirectPath}`;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
     });
     return { data, error: error ? { ...error, message: authErrorMessage(error) } : null };
   }
@@ -297,6 +315,7 @@ export function AuthProvider({ children }) {
     homePath: accountHomePath(accountType),
     loading,
     signInWithEmail,
+    signInWithGoogle,
     signUpWithEmail,
     signUpCaptain,
     sendResetCode,

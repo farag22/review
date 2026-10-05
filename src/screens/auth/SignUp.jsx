@@ -5,7 +5,7 @@ import { useAuth, resolveEmailAndPhone } from "../../context/AuthContext";
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const { signUpWithEmail, refreshAccount } = useAuth();
+  const { signUpWithEmail, signInWithGoogle, refreshAccount } = useAuth();
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -56,6 +56,16 @@ export default function SignUp() {
     }
     await refreshAccount(data.session);
     navigate("/home", { replace: true });
+  }
+
+  async function handleGoogleSignUp() {
+    setError("");
+    setLoading(true);
+    const { error: authError } = await signInWithGoogle("/signup");
+    if (authError) {
+      setLoading(false);
+      setError(authError.message || "تعذر إنشاء الحساب باستخدام Google");
+    }
   }
 
   return (
@@ -133,6 +143,16 @@ export default function SignUp() {
         >
           {loading ? "جاري الإنشاء..." : "إنشاء حساب"}
         </PrimaryButton>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignUp}
+          disabled={loading}
+          className="w-full h-12 rounded-xl border border-black/10 bg-white text-ink font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <span className="text-[17px] font-extrabold text-[#4285F4]">G</span>
+          التسجيل باستخدام Google
+        </button>
 
         <p className="text-center text-[13px] text-ink/55 pb-2">
           لديك حساب بالفعل؟{" "}

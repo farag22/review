@@ -7,7 +7,7 @@ import { accountHomePath } from "../../lib/session";
 export default function SignIn() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithEmail, refreshAccount } = useAuth();
+  const { signInWithEmail, signInWithGoogle, refreshAccount } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -33,6 +33,17 @@ export default function SignIn() {
     const type = await refreshAccount(data.session);
     setLoading(false);
     navigate(accountHomePath(type), { replace: true });
+  }
+
+  async function handleGoogleSignIn() {
+    setError("");
+    setNotice("");
+    setLoading(true);
+    const { error: authError } = await signInWithGoogle("/signin");
+    if (authError) {
+      setLoading(false);
+      setError(authError.message || "تعذر تسجيل الدخول باستخدام Google");
+    }
   }
 
   return (
@@ -79,6 +90,16 @@ export default function SignIn() {
         <PrimaryButton type="submit" disabled={loading || !email.trim() || !password}>
           {loading ? "جاري الدخول..." : "تسجيل الدخول"}
         </PrimaryButton>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          className="w-full h-12 rounded-xl border border-black/10 bg-white text-ink font-bold text-[13px] flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <span className="text-[17px] font-extrabold text-[#4285F4]">G</span>
+          المتابعة باستخدام Google
+        </button>
 
         <p className="text-center text-[13px] text-ink/55 pb-2">
           ليس لديك حساب؟{" "}
