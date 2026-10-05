@@ -209,8 +209,10 @@ export default function MapView({
       const pane = map.getPane("mapPane");
       if (!pane) return;
       const base = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
+      const radians = (rotationRef.current * Math.PI) / 180;
+      const coverScale = Math.max(1, Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians)) + 0.04);
       pane.style.transformOrigin = "center center";
-      pane.style.transform = `${base} rotate(${rotationRef.current}deg)`;
+      pane.style.transform = `${base} scale(${coverScale}) rotate(${rotationRef.current}deg)`;
     };
     map.on("move zoom", syncRotation);
     syncRotation();
@@ -279,7 +281,10 @@ export default function MapView({
     const pane = map.getPane("mapPane");
     if (!pane) return;
     const base = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
-    pane.style.transform = `${base} rotate(${rotationRef.current}deg)`;
+    const radians = (rotationRef.current * Math.PI) / 180;
+    const coverScale = Math.max(1, Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians)) + 0.04);
+    pane.style.transformOrigin = "center center";
+    pane.style.transform = `${base} scale(${coverScale}) rotate(${rotationRef.current}deg)`;
   }, [orientToVehicle, headingKey]);
 
   useEffect(() => {
@@ -492,7 +497,10 @@ export default function MapView({
     const pane = mapRef.current.getPane("mapPane");
     if (!pane) return;
     const base = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
-    pane.style.transform = `${base} rotate(${rotationRef.current}deg)`;
+    const radians = (rotationRef.current * Math.PI) / 180;
+    const coverScale = Math.max(1, Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians)) + 0.04);
+    pane.style.transformOrigin = "center center";
+    pane.style.transform = `${base} scale(${coverScale}) rotate(${rotationRef.current}deg)`;
   }
 
   function resetRotation() {
@@ -500,7 +508,9 @@ export default function MapView({
     const pane = mapRef.current?.getPane("mapPane");
     if (!pane) return;
     pane.style.transformOrigin = "center center";
-    pane.style.transform = (pane.style.transform || "").replace(/\srotate\([^)]*\)/g, "");
+    pane.style.transform = (pane.style.transform || "")
+      .replace(/\srotate\([^)]*\)/g, "")
+      .replace(/\sscale\([^)]*\)/g, "");
   }
 
   const cssHeight = typeof height === "number" ? `${height}px` : height;
