@@ -71,6 +71,8 @@ export function CaptainProvider({ children }) {
   });
   const driverRef = useRef(null);
   const lastGpsRef = useRef(null);
+  const lastRerouteRef = useRef(null);
+  const routeRequestRef = useRef(0);
 
   useEffect(() => {
     driverRef.current = driver;
@@ -322,15 +324,25 @@ export function CaptainProvider({ children }) {
   useEffect(() => {
     if (!activeRide?.id) {
       setRoute(null);
+      lastRerouteRef.current = null;
       setRiderProfile(null);
       return undefined;
     }
     let cancelled = false;
     const pickup = { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
     const dropoff = { lat: activeRide.dropoff_lat, lng: activeRide.dropoff_lng };
-    getRoute(pickup, dropoff).then((r) => {
-      if (!cancelled) setRoute(r);
-    });
+    const target = activeRide.status === "accepted" ? pickup : dropoff;
+    const origin = location?.lat != null && location?.lng != null ? location : pickup;
+    const movedSinceLastRoute =
+      !lastRerouteRef.current || haversineKm(lastRerouteRef.current, origin) >= 0.03;
+    const routeIsStale = !lastRerouteRef.current || Date.now() - lastRerouteRef.current.at >= 10000;
+    if (movedSinceLastRoute || routeIsStale || activeRide.status !== lastRerouteRef.current?.status) {
+      const requestId = ++routeRequestRef.current;
+      lastRerouteRef.current = { ...origin, at: Date.now(), status: activeRide.status };
+      getRoute(origin, target).then((r) => {
+        if (!cancelled && requestId === routeRequestRef.current) setRoute(r);
+      });
+    }
     if (activeRide.rider_id) {
       supabase
         .from("profiles")
@@ -346,7 +358,17 @@ export function CaptainProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [activeRide?.id, activeRide?.rider_id, activeRide?.pickup_lat, activeRide?.dropoff_lat]);
+  }, [
+    activeRide?.id,
+    activeRide?.status,
+    activeRide?.rider_id,
+    activeRide?.pickup_lat,
+    activeRide?.pickup_lng,
+    activeRide?.dropoff_lat,
+    activeRide?.dropoff_lng,
+    location?.lat,
+    location?.lng,
+  ]);
 
   async function patchDriver(fields) {
     if (!driver?.id) return null;
