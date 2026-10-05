@@ -146,11 +146,11 @@ export default function SetDestination() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="ابحث عن أي مكان في العالم"
+            placeholder="ابحث عن مدينة أو قرية أو شارع في القليوبية"
             className="flex-1 bg-transparent text-[14px] placeholder:text-ink/40"
           />
         </div>
-        {searching ? <p className="text-[12px] text-ink/45">جاري البحث في كل الأماكن...</p> : null}
+        {searching ? <p className="text-[12px] text-ink/45">جاري البحث داخل القليوبية...</p> : null}
         {stops.length > 0 && (
           <p className="text-[12px] text-ink/50">{stops.length} توقف إضافي</p>
         )}

@@ -2,6 +2,16 @@ const NOMINATIM = "https://nominatim.openstreetmap.org";
 const PHOTON = "https://photon.komoot.io";
 const OSRM = "https://router.project-osrm.org";
 
+// Qalyubia Governorate search bounds. Nominatim uses west,north,east,south.
+export const QALYUBIA_BBOX = { west: 30.90, south: 30.00, east: 31.55, north: 30.70 };
+const QALYUBIA_VIEWBOX = [
+  QALYUBIA_BBOX.west,
+  QALYUBIA_BBOX.north,
+  QALYUBIA_BBOX.east,
+  QALYUBIA_BBOX.south,
+].join(",");
+const QALYUBIA_CONTEXT = "القليوبية، مصر";
+
 export const BANHA = { lat: 30.466, lng: 31.185 };
 export const BELBEIS = { lat: 30.4203, lng: 31.562 };
 export const CAIRO = { lat: 30.0444, lng: 31.2357 };
@@ -17,12 +27,26 @@ export const LOCAL_PLACES = [
   { label: "بنها", address: "بنها، القليوبية", lat: 30.466, lng: 31.185 },
   { label: "محطة بنها", address: "محطة السكة الحديد، بنها", lat: 30.4588, lng: 31.1786 },
   { label: "جامعة بنها", address: "جامعة بنها، القليوبية", lat: 30.457, lng: 31.184 },
+  { label: "القناطر الخيرية", address: "القناطر الخيرية، القليوبية", lat: 30.193, lng: 31.137 },
   { label: "قها", address: "قها، القليوبية", lat: 30.283, lng: 31.204 },
   { label: "قليوب", address: "قليوب، القليوبية", lat: 30.179, lng: 31.205 },
   { label: "شبرا الخيمة", address: "شبرا الخيمة، القليوبية", lat: 30.1286, lng: 31.2422 },
   { label: "الخانكة", address: "الخانكة، القليوبية", lat: 30.2105, lng: 31.3684 },
+  { label: "الخصوص", address: "الخصوص، القليوبية", lat: 30.164, lng: 31.315 },
+  { label: "العبور", address: "مدينة العبور، القليوبية", lat: 30.228, lng: 31.481 },
+  { label: "شبين القناطر", address: "شبين القناطر، القليوبية", lat: 30.312, lng: 31.321 },
   { label: "طوخ", address: "طوخ، القليوبية", lat: 30.353, lng: 31.201 },
   { label: "كفر شكر", address: "كفر شكر، القليوبية", lat: 30.547, lng: 31.267 },
+  { label: "كفر الجزار", address: "كفر الجزار، بنها، القليوبية", lat: 30.444, lng: 31.178 },
+  { label: "مرصفا", address: "مرصفا، بنها، القليوبية", lat: 30.404, lng: 31.193 },
+  { label: "مشتهر", address: "مشتهر، طوخ، القليوبية", lat: 30.306, lng: 31.22 },
+  { label: "أجهور الكبرى", address: "أجهور الكبرى، طوخ، القليوبية", lat: 30.315, lng: 31.116 },
+  { label: "ميت كنانة", address: "ميت كنانة، طوخ، القليوبية", lat: 30.348, lng: 31.163 },
+  { label: "نامول", address: "نامول، طوخ، القليوبية", lat: 30.337, lng: 31.264 },
+  { label: "سنديون", address: "سنديون، قليوب، القليوبية", lat: 30.173, lng: 31.16 },
+  { label: "باسوس", address: "باسوس، القناطر الخيرية، القليوبية", lat: 30.166, lng: 31.23 },
+  { label: "أبو الغيط", address: "أبو الغيط، القناطر الخيرية، القليوبية", lat: 30.234, lng: 31.103 },
+  { label: "الجبل الأصفر", address: "الجبل الأصفر، الخانكة، القليوبية", lat: 30.213, lng: 31.402 },
   { label: "بلبيس", address: "بلبيس، الشرقية", lat: 30.4203, lng: 31.562 },
   { label: "شارع بورسعيد، بلبيس", address: "شارع بورسعيد، بلبيس، الشرقية", lat: 30.418, lng: 31.559 },
   { label: "محطة بلبيس", address: "محطة السكة الحديد، بلبيس", lat: 30.4225, lng: 31.5638 },
@@ -177,10 +201,29 @@ function normalizeSearch(value) {
     .replace(/ى/g, "ي");
 }
 
+function inQalyubiaBbox(place) {
+  const lat = Number(place?.lat);
+  const lng = Number(place?.lng);
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= QALYUBIA_BBOX.south &&
+    lat <= QALYUBIA_BBOX.north &&
+    lng >= QALYUBIA_BBOX.west &&
+    lng <= QALYUBIA_BBOX.east
+  );
+}
+
+function qalyubiaQuery(query) {
+  const q = String(query || "").trim();
+  if (/القليوبية|qalyubia|qalyub|egypt|مصر/i.test(q)) return q;
+  return `${q}, ${QALYUBIA_CONTEXT}`;
+}
+
 export function searchLocalPlaces(query, limit = 8) {
   const q = normalizeSearch(query);
-  if (!q) return LOCAL_PLACES.slice(0, limit);
-  const scored = LOCAL_PLACES.map((place) => {
+  if (!q) return LOCAL_PLACES.filter(inQalyubiaBbox).slice(0, limit);
+  const scored = LOCAL_PLACES.filter(inQalyubiaBbox).map((place) => {
     const hay = normalizeSearch(`${place.label} ${place.address}`);
     let score = -1;
     if (hay === q) score = 100;
@@ -196,20 +239,28 @@ export function searchLocalPlaces(query, limit = 8) {
 }
 
 async function searchPhoton(q) {
-  const params = new URLSearchParams({ q, limit: "12", lang: "ar" });
+  const params = new URLSearchParams({
+    q: qalyubiaQuery(q),
+    limit: "20",
+    lang: "default",
+    bbox: `${QALYUBIA_BBOX.west},${QALYUBIA_BBOX.south},${QALYUBIA_BBOX.east},${QALYUBIA_BBOX.north}`,
+  });
   const data = await fetchJson(`${PHOTON}/api/?${params}`, 7000);
   return (data?.features || [])
     .map(photonPlace)
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+    .filter(inQalyubiaBbox);
 }
 
 async function searchNominatim(q) {
   const params = new URLSearchParams({
-    q,
+    q: qalyubiaQuery(q),
     format: "jsonv2",
     addressdetails: "1",
-    limit: "12",
+    limit: "20",
     "accept-language": "ar",
+    countrycodes: "eg",
+    viewbox: QALYUBIA_VIEWBOX,
+    bounded: "1",
   });
   const rows = await fetchJson(`${NOMINATIM}/search?${params}`, 7000);
   return (rows || []).map((row) => ({
@@ -217,7 +268,7 @@ async function searchNominatim(q) {
     lng: Number(row.lon),
     label: row.name || shortenAddress(row),
     address: row.display_name,
-  }));
+  })).filter(inQalyubiaBbox);
 }
 
 function mergePlaces(remote, local) {

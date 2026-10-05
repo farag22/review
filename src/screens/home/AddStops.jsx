@@ -84,7 +84,7 @@ export default function AddStops() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="أين التوقف؟"
+            placeholder="مدينة أو قرية أو شارع في القليوبية"
             className="flex-1 bg-transparent text-[13px] placeholder:text-ink/40"
           />
         </div>
