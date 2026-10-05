@@ -179,7 +179,7 @@ export default function MapView({
       dragging: interactive,
       scrollWheelZoom: interactive,
       doubleClickZoom: interactive,
-      touchZoom: interactive,
+      touchZoom: interactive ? "center" : false,
       boxZoom: interactive,
       keyboard: interactive,
     }).setView([Number(center.lat) || 30.466, Number(center.lng) || 31.185], 16);
@@ -201,7 +201,7 @@ export default function MapView({
     mapRef.current = map;
 
     if (orientToVehicle && Number.isFinite(Number(driver?.heading))) {
-      rotationRef.current = -Number(driver.heading);
+      rotationRef.current = Number(driver.heading);
       rotationInitializedRef.current = true;
     }
     const syncRotation = () => {
@@ -247,7 +247,7 @@ export default function MapView({
     const map = mapRef.current;
     if (!map || !orientToVehicle || rotationInitializedRef.current) return;
     if (!Number.isFinite(Number(driver?.heading))) return;
-    rotationRef.current = -Number(driver.heading);
+    rotationRef.current = Number(driver.heading);
     rotationInitializedRef.current = true;
     const pane = map.getPane("mapPane");
     if (!pane) return;
@@ -403,7 +403,9 @@ export default function MapView({
     });
 
     const pad = fitPadding || { padding: [48, 48] };
-    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${userKey}|${requestsKey}|${JSON.stringify(pad)}`;
+    // لا نعيد fitBounds مع كل تحديث GPS حتى يحتفظ الكابتن بمستوى التكبير
+    // والتحريك اليدوي الذي اختاره أثناء الرحلة.
+    const fitKey = `${pickupKey}|${destinationKey}|${pathKey}|${requestsKey}|${JSON.stringify(pad)}`;
     if (fitKey !== lastFitRef.current) {
       lastFitRef.current = fitKey;
       const bounds = [];
