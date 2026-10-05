@@ -114,6 +114,9 @@ export default function ConfirmPickup() {
         phone={driver?.phone}
         chatTitle="مراسلة السائق"
         chatBody="التتبع يعمل على الخريطة. يمكنك التواصل أثناء انتظار الوصول."
+        rideId={activeRide?.id}
+        senderRole="rider"
+        otherLabel="الكابتن"
       />
 
       <div className="ride-live-sheet bg-white rounded-t-3xl px-5 pt-5 pb-6 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] space-y-4">

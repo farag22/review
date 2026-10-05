@@ -149,10 +149,13 @@ export default function TripProgress() {
       </div>
 
       <RideLiveOverlay
-        badge="تتبع السائق"
+        badge="الرحلة جارية"
         phone={driver?.phone}
         chatTitle="مراسلة السائق"
         chatBody="يمكنك التواصل أثناء التتبع المباشر على الخريطة حتى إنهاء الرحلة."
+        rideId={activeRide?.id}
+        senderRole="rider"
+        otherLabel="الكابتن"
       />
 
       {arrivalAlert ? (

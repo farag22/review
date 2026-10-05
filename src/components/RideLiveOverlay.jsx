@@ -1,11 +1,15 @@
 import React, { useState } from "react";
 import { ChatIcon, PhoneCallIcon } from "./Icons";
+import RideChat from "./RideChat";
 
 export default function RideLiveOverlay({
   badge = "تتبع مباشر",
   phone,
   chatTitle,
   chatBody,
+  rideId,
+  senderRole,
+  otherLabel,
 }) {
   const [chatOpen, setChatOpen] = useState(false);
 
@@ -43,8 +47,14 @@ export default function RideLiveOverlay({
       </div>
       {chatOpen && (
         <div className="absolute top-20 left-4 right-4 z-20 bg-white rounded-2xl shadow-card p-4">
-          <p className="font-bold text-[13px]">{chatTitle}</p>
-          <p className="text-[12px] text-ink/50 mt-1">{chatBody}</p>
+          {rideId ? (
+            <RideChat rideId={rideId} senderRole={senderRole} otherLabel={otherLabel} />
+          ) : (
+            <>
+              <p className="font-bold text-[13px]">{chatTitle}</p>
+              <p className="text-[12px] text-ink/50 mt-1">{chatBody}</p>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setChatOpen(false)}
