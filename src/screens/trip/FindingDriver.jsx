@@ -67,7 +67,7 @@ export default function FindingDriver() {
 
   async function handleCancel() {
     await cancelRide();
-    navigate("/choose-ride");
+    navigate("/home");
   }
 
   return (

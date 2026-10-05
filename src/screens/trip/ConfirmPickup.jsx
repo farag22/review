@@ -86,7 +86,7 @@ export default function ConfirmPickup() {
 
   async function handleCancel() {
     await cancelRide();
-    navigate("/choose-ride");
+    navigate("/home");
   }
 
   const name = driver?.full_name || "جاري تحديد السائق";
