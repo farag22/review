@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sahil Drive</string>
+    <string name="title_activity_main">Sahil Drive</string>
+    <string name="package_name">com.sahildrive.app</string>
+    <string name="custom_url_scheme">com.sahildrive.app</string>
+</resources>
