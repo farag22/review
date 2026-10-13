@@ -1,5 +1,5 @@
 {
-  "name": "sahil-drive-rider",
+  "name": "crazy-poker-online",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,26 +7,26 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "server": "node server/index.js",
+    "start": "npm run build && node server/index.js",
     "android:sync": "npm run build && npx cap sync android",
     "android:open": "npx cap open android",
-    "android:run": "npm run android:sync && npx cap run android",
-    "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "android:bundle": "npm run android:sync && cd android && ./gradlew bundleRelease"
+    "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "@supabase/supabase-js": "^2.45.4",
+    "@vitejs/plugin-react": "^4.3.1",
     "leaflet": "^1.9.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2"
+    "react-router-dom": "^6.26.2",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.5.2",
-    "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.47",
+    "postcss": "^10.4.20",
     "tailwindcss": "^3.4.13",
     "vite": "^5.4.8"
   }

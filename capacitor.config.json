@@ -1,5 +1,8 @@
 {
-  "appId": "com.sahildrive.app",
-  "appName": "Sahil Drive",
-  "webDir": "dist"
+  "appId": "com.crazypoker.online",
+  "appName": "Crazy Poker Online",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
 }
